@@ -1,52 +1,120 @@
-class BayesFilter:
-    def __init__(self, states, observations, transition_model, observation_model):
-        self.states = states
-        self.observations = observations
-        self.transition_model = transition_model
-        self.observation_model = observation_model
+#Initial state of the door is unknown
+bel_x0_open = 0.5
+bel_x0_closed = 0.5
 
-    def update(self, belief, action, observation):
-        new_belief = {}
-        for state in self.states:
-            new_belief[state] = 0.0
-            for prev_state in self.states:
-                transition_prob = self.transition_model[prev_state][state]
-                observation_prob = self.observation_model[state][observation]
-                new_belief[state] += belief[prev_state] * transition_prob * observation_prob
-        return new_belief
+#Intitialize the measurement model
+p_zt_open_xt_open = 0.6
+p_zt_open_xt_closed = 0.4
+p_zt_closed_xt_open = 0.2
+p_zt_closed_xt_closed = 0.8
 
-    def localize(self, initial_belief, actions, observations):
-        belief = initial_belief
-        for action, observation in zip(actions, observations):
-            belief = self.update(belief, action, observation)
-        return belief
+#Initialize the action model
+p_xt_open_ut_push_xt_1_open = 1
+p_xt_closed_ut_push_xt_1_open = 0
+p_xt_open_ut_push_xt_1_closed = 0.8
+p_xt_closed_ut_push_xt_1_closed = 0.2
+
+p_xt_open_ut_do_nothing_xt_1_open = 1
+p_xt_closed_ut_do_nothing_xt_1_open = 0
+p_xt_open_ut_do_nothing_xt_1_closed = 0
+p_xt_closed_ut_do_nothing_xt_1_closed = 1
+
+#Write the Bayes Filter function
+def bayes_filter(action,measurement):
+    global bel_x0_open,bel_x0_closed
+    if(action=="do_nothing" and measurement=="open"):
+        bel_bar_x1_open = (p_xt_open_ut_do_nothing_xt_1_open*bel_x0_open) + (p_xt_open_ut_do_nothing_xt_1_closed*bel_x0_closed)
+
+        bel_bar_x1_closed = (p_xt_closed_ut_do_nothing_xt_1_open*bel_x0_open) + (p_xt_closed_ut_do_nothing_xt_1_closed*bel_x0_closed)
+
+        bel_x1_open = p_zt_open_xt_open*bel_bar_x1_open
+
+        bel_x1_closed = p_zt_open_xt_closed*bel_bar_x1_closed
+
+        norm = 1/(bel_x1_open+bel_x1_closed)
+
+        bel_x1_open = norm*bel_x1_open
+
+        bel_x1_closed = norm*bel_x1_closed
+
+        bel_x0_open = bel_x1_open
+        bel_x0_closed = bel_x1_closed
+
+        print("Probability the door is open is ",bel_x0_open)
+        print("Probability the door is closed is ",bel_x0_closed)
+
+    if(action=="open" and measurement=="open"):
+        bel_bar_x1_open = (p_xt_open_ut_push_xt_1_open*bel_x0_open) + (p_xt_open_ut_push_xt_1_closed*bel_x0_closed)
+
+        bel_bar_x1_closed = (p_xt_closed_ut_push_xt_1_open*bel_x0_open) + (p_xt_closed_ut_push_xt_1_closed*bel_x0_closed)
+
+        bel_x1_open = p_zt_open_xt_open*bel_bar_x1_open
+
+        bel_x1_closed = p_zt_open_xt_closed*bel_bar_x1_closed
+
+        norm = 1/(bel_x1_open+bel_x1_closed)
+
+        bel_x1_open = norm*bel_x1_open
+
+        bel_x1_closed = norm*bel_x1_closed
+
+        bel_x0_open = bel_x1_open
+        bel_x0_closed = bel_x1_closed
+
+        print("Probability the door is open is ",bel_x0_open)
+        print("Probability the door is closed is ",bel_x0_closed)
+
+    if(action=="open" and measurement=="closed"):
+        bel_bar_x1_open = (p_xt_open_ut_push_xt_1_open*bel_x0_open) + (p_xt_open_ut_push_xt_1_closed*bel_x0_closed)
+
+        bel_bar_x1_closed = (p_xt_closed_ut_push_xt_1_open*bel_x0_open) + (p_xt_closed_ut_push_xt_1_closed*bel_x0_closed)
+
+        bel_x1_open = p_zt_closed_xt_open*bel_bar_x1_open
+
+        bel_x1_closed = p_zt_closed_xt_closed*bel_bar_x1_closed
+
+        norm = 1/(bel_x1_open+bel_x1_closed)
+
+        bel_x1_open = norm*bel_x1_open
+
+        bel_x1_closed = norm*bel_x1_closed
+
+        bel_x0_open = bel_x1_open
+        bel_x0_closed = bel_x1_closed
+
+        print("Probability the door is open is ",bel_x0_open)
+        print("Probability the door is closed is ",bel_x0_closed)
+
+    if(action=="do_nothing" and measurement=="closed"):
+        bel_bar_x1_open = (p_xt_open_ut_do_nothing_xt_1_open*bel_x0_open) + (p_xt_open_ut_do_nothing_xt_1_closed*bel_x0_closed)
+
+        bel_bar_x1_closed = (p_xt_closed_ut_do_nothing_xt_1_open*bel_x0_open) + (p_xt_closed_ut_do_nothing_xt_1_closed*bel_x0_closed)
+
+        bel_x1_open = p_zt_closed_xt_open*bel_bar_x1_open
+
+        bel_x1_closed = p_zt_closed_xt_closed*bel_bar_x1_closed
+
+        norm = 1/(bel_x1_open+bel_x1_closed)
+
+        bel_x1_open = norm*bel_x1_open
+
+        bel_x1_closed = norm*bel_x1_closed
+
+        bel_x0_open = bel_x1_open
+        bel_x0_closed = bel_x1_closed
+
+        print("Probability the door is open is ",bel_x0_open)
+        print("Probability the door is closed is ",bel_x0_closed)
 
 def main():
-    # Create an instance of BayesFilter
-    states = ['A', 'B', 'C']
-    observations = ['X', 'Y', 'Z']
-    transition_model = {
-        'A': {'A': 0.7, 'B': 0.2, 'C': 0.1},
-        'B': {'A': 0.3, 'B': 0.5, 'C': 0.2},
-        'C': {'A': 0.1, 'B': 0.4, 'C': 0.5}
-    }
-    observation_model = {
-        'A': {'X': 0.6, 'Y': 0.3, 'Z': 0.1},
-        'B': {'X': 0.1, 'Y': 0.7, 'Z': 0.2},
-        'C': {'X': 0.3, 'Y': 0.4, 'Z': 0.3}
-    }
-    bayes_filter = BayesFilter(states, observations, transition_model, observation_model)
+    actions = ["do_nothing","open","do_nothing","open","do_nothing"]
+    measurement = ["closed","closed","closed","open","open"]
 
-    # Define initial belief, actions, and observations
-    initial_belief = {'A': 0.4, 'B': 0.3, 'C': 0.3}
-    actions = ['action1', 'action2', 'action3']
-    observations = ['X', 'Y', 'Z']
-
-    # Perform localization
-    belief = bayes_filter.localize(initial_belief, actions, observations)
-
-    # Print the final belief
-    print(belief)
-
+    for i in range(0,5):
+         print("Action",actions[i])
+         print("Measurement",measurement[i])
+         bayes_filter(actions[i],measurement[i])
+         print("Iteration",i,"done\n")
+   
 if __name__ == "__main__":
     main()
