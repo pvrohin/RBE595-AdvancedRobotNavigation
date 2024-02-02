@@ -18,7 +18,7 @@ process_noise_std = 1e-4  # Experimentally determined
 process_noise_covariance = np.eye(6) * process_noise_std
 
 # Define measurement noise covariance matrix for position
-position_measurement_noise_std = 0.15  # Low noise for position
+position_measurement_noise_std = 0.05  # Low noise for position
 position_measurement_noise_covariance = np.eye(3) * position_measurement_noise_std**2
 
 # Define measurement noise covariance matrix for velocity
@@ -61,20 +61,20 @@ for i in range(len(data)):
     P_minus = A @ P @ A.T + process_noise_covariance
 
     # Update step based on measurement type
-    #if i < len(data):
     measurement = data[i, 4:7]
     H = H_position
     R = position_measurement_noise_covariance
-    # else:
-    #     measurement = data[i, 1:4]
-    #     H = H_velocity
-    #     R = velocity_measurement_noise_covariance
 
     y = measurement - H @ x_hat_minus
     S = H @ P_minus @ H.T + R
     K = P_minus @ H.T @ np.linalg.inv(S)
+
+    #print("Kalman gain:", K)
+
     x_hat = x_hat_minus + K @ y
     P = (np.eye(6) - K @ H) @ P_minus
+
+    print("Updated state:", x_hat)
 
     estimated_positions.append(x_hat[:3])
 
