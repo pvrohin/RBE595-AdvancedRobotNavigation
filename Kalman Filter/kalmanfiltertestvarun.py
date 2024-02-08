@@ -7,19 +7,29 @@ data = np.loadtxt("kalman_filter_data_low_noise.txt", delimiter=",")
 # Extract time step
 delta_t = data[1, 0] - data[0, 0]
 
+print("Time step:", delta_t)
+
 # Define mass of the drone
 mass = 0.027  # 27 grams
 
 # Define initial covariance matrix
-initial_covariance = np.eye(6) * 1e-6  # Small initial covariance
+initial_covariance = np.eye(6) * 1e-1  # Small initial covariance
 
 # Define process noise covariance matrix
-process_noise_std = 1e-4  # Experimentally determined
-process_noise_covariance = np.eye(6) * process_noise_std
+process_noise_std = 1e-8  # Experimentally determined
+process_noise_covariance = np.diag([1e-2, 1e-2, 1e-2, 1e-4, 1e-4, 1e-4]) 
 
 # Define measurement noise covariance matrix for position
-position_measurement_noise_std = 0.05  # Low noise for position
+position_measurement_noise_std = 0.1  # Low noise for position
 position_measurement_noise_covariance = np.eye(3) * position_measurement_noise_std**2
+
+# Define process noise covariance matrix
+# process_noise_std = 1e-8  # Experimentally determined
+# process_noise_covariance = np.diag([1e-1, 1e-1, 1e-1, 1e-2, 1e-2, 1e-2]) 
+
+# Define measurement noise covariance matrix for position
+# position_measurement_noise_std = 0.1  # Low noise for position
+# position_measurement_noise_covariance = np.eye(3) * position_measurement_noise_std**2
 
 # Define measurement noise covariance matrix for velocity
 velocity_measurement_noise_std = 0.05  # Low noise for velocity
@@ -32,8 +42,8 @@ initial_state = np.hstack((initial_position, initial_velocity))
 
 # Initialize Kalman filter matrices
 A = np.block([
-    [np.zeros((3, 3)), np.eye(3)],
-    [np.zeros((3, 3)), np.zeros((3, 3))]
+    [np.eye((3)), delta_t*np.eye(3)],
+    [np.zeros((3, 3)), np.eye((3))]
 ])
 
 B = np.block([
@@ -57,10 +67,11 @@ P = initial_covariance
 estimated_positions = []
 for i in range(len(data)):
     # Prediction step
+    # print(data[i,:])
     x_hat_minus = A @ x_hat + B @ data[i, 1:4]
     P_minus = A @ P @ A.T + process_noise_covariance
 
-    #print("P_minus:", P_minus)
+    # print("P_minus:", P_minus)
 
     # Update step based on measurement type
     measurement = data[i, 4:7]
@@ -77,7 +88,11 @@ for i in range(len(data)):
     x_hat = x_hat_minus + K @ y
     P = (np.eye(6) - K @ H) @ P_minus
 
-    #print("P:", P)
+    if (i < 20):
+        print(K)
+        print('P:', P)
+
+    # print("P:", P)
 
     #print("Updated state:", x_hat)
 
@@ -98,7 +113,7 @@ ax_actual.set_zlabel('Z')
 ax_actual.legend()
 ax_actual.set_title('Actual Position')
 
-# # Plotting estimated positions
+# Plotting estimated positions
 fig_estimated = plt.figure()
 ax_estimated = fig_estimated.add_subplot(111, projection='3d')
 ax_estimated.plot(estimated_positions[:, 0], estimated_positions[:, 1], estimated_positions[:, 2], label='Estimated Position', color='blue')
