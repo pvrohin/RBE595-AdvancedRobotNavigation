@@ -1,106 +1,145 @@
 import numpy as np
 import matplotlib.pyplot as plt
 
-# Read data from file
-data = np.loadtxt("kalman_filter_data_low_noise.txt", delimiter=",")
+class KalmanFilter:
+    def __init__(self, type=1, position=True):
+        # Read data from file based on user input
+        if type==1:
+            self.data = np.loadtxt("kalman_filter_data_low_noise.txt", delimiter=",")
+        elif type==2:
+            self.data = np.loadtxt("kalman_filter_data_high_noise.txt", delimiter=",")
+        else:
+            self.data = np.loadtxt("kalman_filter_data_velocity.txt", delimiter=",")
+        
+        self.actual_data = np.loadtxt("kalman_filter_data_mocap.txt", delimiter=",")
+        
+        self.mass = 0.027  # 27 grams
 
-# Extract time step
-delta_t = data[1, 0] - data[0, 0]
+        # Define initial covariance matrix
+        self.initial_covariance = np.eye(6) * 1e-6
 
-# Define mass of the drone
-mass = 0.027  # 27 grams
+        # Define process noise covariance matrix
+        self.process_noise_std = 1e-8
+        self.process_noise_covariance = np.eye(6) * self.process_noise_std
+        
+        # Define measurement noise covariance matrix for position and velocity based on user input
+        if position:
+            self.measurement_noise_std = 0.1
+            self.measurement_noise_covariance = np.eye(3) * self.measurement_noise_std**2
+        else:
+            self.measurement_noise_std = 0.05
+            self.measurement_noise_covariance = np.eye(3) * self.measurement_noise_std**2
+        
+        # Initialize state vector
+        self.initial_position = self.data[0, 4:7]
+        self.initial_velocity = np.zeros(3)
+        self.initial_state = np.hstack((self.initial_position, self.initial_velocity))
+        
+        # Initialize measurement matrices based on user input (position or velocity)
+        if position:
+            self.H = np.block([
+            [np.eye(3), np.zeros((3, 3))]
+            ])
+        else:
+            self.H = np.block([
+            [np.zeros((3, 3)), np.eye(3)]
+            ])
+        
+        self.x_hat = self.initial_state
+        self.P = self.initial_covariance
+        self.estimated_positions = []
 
-# Define initial covariance matrix
-initial_covariance = np.eye(6) * 1e-6  # Small initial covariance
+    def Kalmanloop(self):
+        for i in range(len(self.data)-1):
+            #Extract time step
+            delta_t = self.data[i+1,0] - self.data[i,0]
 
-# Define process noise covariance matrix
-process_noise_std = 1e-4  # Experimentally determined
-process_noise_covariance = np.eye(6) * process_noise_std
+            #Initialize A and B matrices
+            A = np.block([
+                [np.eye((3)), delta_t*np.eye(3)],
+                [np.zeros((3, 3)), np.eye((3))]
+            ])
+            B = np.block([
+                [np.zeros((3, 3))],
+                [np.eye(3) * delta_t / self.mass]
+            ])
 
-# Define measurement noise covariance matrix for position
-position_measurement_noise_std = 0.15  # Low noise for position
-position_measurement_noise_covariance = np.eye(3) * position_measurement_noise_std**2
+            #Prediction step
+            x_hat_minus = A @ self.x_hat + B @ self.data[i, 1:4]
+            P_minus = A @ self.P @ A.T + self.process_noise_covariance
 
-# Define measurement noise covariance matrix for velocity
-velocity_measurement_noise_std = 0.05  # Low noise for velocity
-velocity_measurement_noise_covariance = np.eye(3) * velocity_measurement_noise_std**2
+            # Extract measurement
+            measurement = self.data[i+1, 4:7]
 
-# Initialize state vector
-initial_position = data[0, 4:7]
-initial_velocity = np.zeros(3)
-initial_state = np.hstack((initial_position, initial_velocity))
+            #Assign H and R
+            H = self.H
+            R = self.measurement_noise_covariance
 
-# Initialize Kalman filter matrices
-A = np.block([
-    [np.zeros((3, 3)), np.eye(3)],
-    [np.zeros((3, 3)), np.zeros((3, 3))]
-])
+            # Calculate Innovation and Kalman Gain
+            y = measurement - H @ x_hat_minus
+            S = H @ P_minus @ H.T + R
+            K = P_minus @ H.T @ np.linalg.inv(S)
 
-B = np.block([
-    [np.zeros((3, 3))],
-    [np.eye(3) * delta_t / mass]
-])
+            #Update step
+            self.x_hat = x_hat_minus + K @ y
+            self.P = (np.eye(6) - K @ H) @ P_minus
 
-H_position = np.block([
-    [np.eye(3), np.zeros((3, 3))]
-])
+            #Store estimated position
+            self.estimated_positions.append(self.x_hat[:3])
+        self.estimated_positions = np.array(self.estimated_positions)
+        return self.estimated_positions
+        
+    def plot(self, estimated_positions_1, estimated_positions_2, estimated_positions_3):
+        fig = plt.figure()
+        ax1 = fig.add_subplot(131, projection='3d')
 
-H_velocity = np.block([
-    [np.zeros((3, 3)), np.eye(3)]
-])
+        ax1.plot(self.actual_data[:, 4], self.actual_data[:, 5], self.actual_data[:, 6], label='Actual Position', color='red')
+        ax1.plot(estimated_positions_1[:, 0], estimated_positions_1[:, 1], estimated_positions_1[:, 2], label='Estimated Position', color='blue')
+        ax1.set_xlabel('X')
+        ax1.set_ylabel('Y')
+        ax1.set_zlabel('Z')
+        ax1.legend()
+        ax1.set_title('Actual vs. Estimated Position (Low Noise)')
 
-# Initialize state and covariance
-x_hat = initial_state
-P = initial_covariance
+        ax2 = fig.add_subplot(132, projection='3d')
+        ax2.plot(self.actual_data[:, 4], self.actual_data[:, 5], self.actual_data[:, 6], label='Actual Position', color='red')
+        ax2.plot(estimated_positions_2[:, 0], estimated_positions_2[:, 1], estimated_positions_2[:, 2], label='Estimated Position', color='blue')
+        ax2.set_xlabel('X')
+        ax2.set_ylabel('Y')
+        ax2.set_zlabel('Z')
+        ax2.legend()
+        ax2.set_title('Actual vs. Estimated Position (High Noise)')
 
-# Kalman Filter Loop
-estimated_positions = []
-for i in range(len(data)):
-    # Prediction step
-    x_hat_minus = A @ x_hat 
-    P_minus = A @ P @ A.T + process_noise_covariance
 
-    # Update step based on measurement type
-    #if i < len(data):
-    measurement = data[i, 4:7]
-    H = H_position
-    R = position_measurement_noise_covariance
-    # else:
-    #     measurement = data[i, 1:4]
-    #     H = H_velocity
-    #     R = velocity_measurement_noise_covariance
+        ax3 = fig.add_subplot(133, projection='3d')
+        ax3.plot(self.actual_data[:, 4], self.actual_data[:, 5], self.actual_data[:, 6], label='Actual Velocity', color='red')
+        ax3.plot(estimated_positions_3[:, 0], estimated_positions_3[:, 1], estimated_positions_3[:, 2], label='Estimated Velocity', color='blue')
+        ax3.set_xlabel('X')
+        ax3.set_ylabel('Y')
+        ax3.set_zlabel('Z')
+        ax3.legend()
+        ax3.set_title('Actual vs. Estimated Velocity')
 
-    y = measurement - H @ x_hat_minus
-    S = H @ P_minus @ H.T + R
-    K = P_minus @ H.T @ np.linalg.inv(S)
-    x_hat = x_hat_minus + K @ y
-    P = (np.eye(6) - K @ H) @ P_minus
+        plt.show()
 
-    estimated_positions.append(x_hat[:3])
+def main():
 
-# Convert estimated positions to numpy array for plotting
-estimated_positions = np.array(estimated_positions)
+    type = 1 # Low noise
+    position = True # Position tracking
+    kalman1 = KalmanFilter(type, position)
+    estimated_positions_1 = kalman1.Kalmanloop()
 
-actual_data = np.loadtxt("kalman_filter_data_mocap.txt", delimiter=",")
+    type = 2 # High noise
+    position = True # Position tracking
+    kalman2 = KalmanFilter(type, position)
+    estimated_positions_2 = kalman2.Kalmanloop()
 
-# Plotting actual positions
-fig_actual = plt.figure()
-ax_actual = fig_actual.add_subplot(111, projection='3d')
-ax_actual.plot(actual_data[:, 4], actual_data[:, 5], actual_data[:, 6], label='Actual Position', color='red')
-ax_actual.set_xlabel('X')
-ax_actual.set_ylabel('Y')
-ax_actual.set_zlabel('Z')
-ax_actual.legend()
-ax_actual.set_title('Actual Position')
+    type = 3 # Velocity
+    position = False # Velocity tracking
+    kalman3 = KalmanFilter(type, position)
+    estimated_positions_3 = kalman3.Kalmanloop()
+    
+    kalman3.plot(estimated_positions_1, estimated_positions_2, estimated_positions_3)
 
-# Plotting estimated positions
-fig_estimated = plt.figure()
-ax_estimated = fig_estimated.add_subplot(111, projection='3d')
-ax_estimated.plot(estimated_positions[:, 0], estimated_positions[:, 1], estimated_positions[:, 2], label='Estimated Position', color='blue')
-ax_estimated.set_xlabel('X')
-ax_estimated.set_ylabel('Y')
-ax_estimated.set_zlabel('Z')
-ax_estimated.legend()
-ax_estimated.set_title('Estimated Position')
-
-plt.show()
+if __name__ == "__main__":
+    main()
