@@ -189,7 +189,7 @@ def world_corners():
     return tag_coordinates
 
 # Load data from .mat file
-data = load_data('data/studentdata0.mat')
+data = load_data('data/studentdata4.mat')
 
 print(len(data['data']))
 
@@ -253,38 +253,27 @@ ground_truth_positions = np.array(ground_truth_positions)
 estimated_orientations = np.array(estimated_orientations)
 ground_truth_orientations = np.array(ground_truth_orientations)
 
-# If any of the values in estimated positions are greater than 2 and less than -2, make it 0
-# for i in range(len(estimated_positions)):
-#     if estimated_positions[i][0] > 2 or estimated_positions[i][0] < -2:
-#         estimated_positions[i][0] = 0
-#     if estimated_positions[i][1] > 2 or estimated_positions[i][1] < -2:
-#         estimated_positions[i][1] = 0
-#     if estimated_positions[i][2] > 2 or estimated_positions[i][2] < -2:
-#         estimated_positions[i][2] = 0
-
-    
 # # Plot trajectory
-# fig = plt.figure(figsize=(10, 8))
-# ax = fig.add_subplot(111, projection='3d')
-# ax.plot(estimated_positions[:, 0], estimated_positions[:, 1], estimated_positions[:, 2], label='Estimated Trajectory')
-# ax.plot(ground_truth_positions[:, 0], ground_truth_positions[:, 1], ground_truth_positions[:, 2], label='Ground Truth Trajectory')
-# ax.set_xlabel('X')
-# ax.set_ylabel('Y')
-# ax.set_zlabel('Z')
-# ax.set_title('Drone Trajectory')
-# ax.legend()
-    
-#plot trajectory as dots
 fig = plt.figure(figsize=(10, 8))
 ax = fig.add_subplot(111, projection='3d')
-
-ax.scatter(estimated_positions[:, 0], estimated_positions[:, 1], estimated_positions[:, 2], label='Estimated Trajectory')
-ax.scatter(ground_truth_positions[:, 0], ground_truth_positions[:, 1], ground_truth_positions[:, 2], label='Ground Truth Trajectory')
+ax.plot(estimated_positions[:, 0], estimated_positions[:, 1], estimated_positions[:, 2], label='Estimated Trajectory')
+ax.plot(ground_truth_positions[:, 0], ground_truth_positions[:, 1], ground_truth_positions[:, 2], label='Ground Truth Trajectory')
 ax.set_xlabel('X')
 ax.set_ylabel('Y')
 ax.set_zlabel('Z')
 ax.set_title('Drone Trajectory')
 ax.legend()
+    
+#plot trajectory as dots
+# fig = plt.figure(figsize=(10, 8))
+# ax = fig.add_subplot(111, projection='3d')
+# ax.scatter(estimated_positions[:, 0], estimated_positions[:, 1], estimated_positions[:, 2], label='Estimated Trajectory')
+# ax.scatter(ground_truth_positions[:, 0], ground_truth_positions[:, 1], ground_truth_positions[:, 2], label='Ground Truth Trajectory')
+# ax.set_xlabel('X')
+# ax.set_ylabel('Y')
+# ax.set_zlabel('Z')
+# ax.set_title('Drone Trajectory')
+# ax.legend()
 
 #Plot orientation
 fig, axs = plt.subplots(3, 1, figsize=(10, 12))
