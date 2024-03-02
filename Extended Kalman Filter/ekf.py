@@ -97,8 +97,6 @@ class EKF:
 filename = 'data/studentdata0.mat'
 data = load_data(filename)
 
-print(data)
-
 # Estimate observation model covariance
 R = estimate_covariances(filename)
 

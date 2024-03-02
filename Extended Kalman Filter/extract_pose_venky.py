@@ -189,7 +189,7 @@ def world_corners():
     return tag_coordinates
 
 # Load data from .mat file
-data = load_data('data/studentdata4.mat')
+data = load_data('data/studentdata7.mat')
 
 print(len(data['data']))
 
