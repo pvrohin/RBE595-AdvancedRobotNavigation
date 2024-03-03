@@ -11,7 +11,6 @@ def load_data(filename):
 def estimate_pose(data, tag_coordinates):
     
     # Extract 3D coordinates of AprilTag corners from the map layout
-    # map_corners_3d = np.array([corner for id, corners in tag_coordinates if id in data['id'] for corner in corners])  # Extract 3D coordinates from tag_coordinates
 
     map_corners_3d = []
     for data_id in data['id']:
@@ -23,27 +22,8 @@ def estimate_pose(data, tag_coordinates):
     
     map_corners_3d = np.array(map_corners_3d)
                 
-    #print all the ids
-    #print(data['id'])
-    
-    # Add the z=0 coordinate to each corner
-    # map_corners_3d = np.hstack((map_corners_3d, np.zeros((map_corners_3d.shape[0], 1))))
-
-    #print shape of map_corners_3d
-    #print(map_corners_3d.shape)
-
     # Extract 2D projections of AprilTag corners from the image data
     # the format of the p1 through p4 arrays are not[ [x1, y1], [x2, y2], [x3, y3]] like I presumed but its actually [ [x1, x2, x3], [y1, y2, y3]]
-    #image_corners_2d = np.vstack([data['p1'], data['p2'], data['p3'], data['p4']])
-    #image_corners_2d = np.stack((data['p1'], data['p2'], data['p3'], data['p4']), axis=-1).reshape(-1, 2)
-
-    # convert p1,p2,p3,p4 to [[x1, y1], [x2, y2], [x3, y3],....] format
-    #print the id of the tag
-    # print(data['id'])
-    #print(data['p1'])
-    # print(data['p2'])
-    # print(data['p3'])
-    # print(data['p4'])
 
     data['p1'] = np.array(data['p1'])
 
@@ -73,12 +53,7 @@ def estimate_pose(data, tag_coordinates):
     if len(data['p4']) == 1:
         data['p4'] = data['p4'].reshape(-1, 1)
 
-    
     data['p4'] = data['p4'].T
-
-
-    
-    #image_corners_2d = np.vstack((data['p4'], data['p3'], data['p2'], data['p1']))
 
     image_corners_2d = []
     
@@ -112,33 +87,17 @@ def estimate_pose(data, tag_coordinates):
     # Solve the PnP problem
     success, rvec, tvec = cv2.solvePnP(map_corners_3d, image_corners_2d, camera_matrix, dist_coeffs)
 
-    
     if not success:
         raise RuntimeError("PnP solver failed to converge")
     
-    # # Transform camera coordinates to IMU coordinates
-    # rvec_imu, _ = cv2.Rodrigues(rot_matrix_imu_camera)
-    # rvec_imu_camera = rvec + rvec_imu
-    # tvec_imu_camera = tvec_imu_camera + tvec
-
-    # # Convert rotation vector to rotation matrix
-    # rot_matrix, _ = cv2.Rodrigues(rvec_imu_camera)
-
-    # # Extract Euler angles from rotation matrix
-    # roll = np.arctan2(rot_matrix[2, 1], rot_matrix[2, 2])
-    # pitch = np.arctan2(-rot_matrix[2, 0], np.sqrt(rot_matrix[2, 1]**2 + rot_matrix[2, 2]**2))
-    # yaw = np.arctan2(rot_matrix[1, 0], rot_matrix[0, 0])
-    
-
-
-    # Convert rotation vector to rotation matrix
+    #Transform camera coordinates to IMU coordinates
     rot_matrix, _ = cv2.Rodrigues(rvec)
+    rot_matrix_imu_camera = rot_matrix@rot_matrix_imu_camera
 
-    
     # Extract Euler angles from rotation matrix
-    roll = np.arctan2(rot_matrix[2, 1], rot_matrix[2, 2])
-    pitch = np.arctan2(-rot_matrix[2, 0], np.sqrt(rot_matrix[2, 1]**2 + rot_matrix[2, 2]**2))
-    yaw = np.arctan2(rot_matrix[1, 0], rot_matrix[0, 0])
+    roll = np.arctan2(rot_matrix_imu_camera[2, 1], rot_matrix_imu_camera[2, 2])
+    pitch = np.arctan2(-rot_matrix_imu_camera[2, 0], np.sqrt(rot_matrix_imu_camera[2, 1]**2 + rot_matrix_imu_camera[2, 2]**2))
+    yaw = np.arctan2(rot_matrix_imu_camera[1, 0], rot_matrix_imu_camera[0, 0])
 
     #print(tvec_imu_camera.flatten())
 
@@ -205,9 +164,6 @@ for i in range(len(data['data'])):
             data['data'][i][point] = data['data'][i][point].reshape(1, -1)
 
 tag_coordinates = world_corners()
-
-for i in range(len(tag_coordinates)):
-    print(tag_coordinates[i])
 
 estimated_positions = []
 estimated_orientations = []
