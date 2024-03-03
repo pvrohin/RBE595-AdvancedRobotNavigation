@@ -38,8 +38,6 @@ def estimate_pose(data, tag_coordinates):
         data['p2'] = data['p2'].reshape(-1, 1)
 
     data['p2'] = data['p2'].T
-    
-
 
     data['p3'] = np.array(data['p3'])
 
@@ -66,9 +64,6 @@ def estimate_pose(data, tag_coordinates):
 
     image_corners_2d = np.array(image_corners_2d)
 
-    #print the shape of image_corners_2d
-
-    
     # Camera intrinsic parameters and distortion coefficients (from parameters.txt)
     camera_matrix = np.array([[314.1779, 0, 199.4848],
                           [0, 314.2218, 113.7838],
@@ -98,8 +93,6 @@ def estimate_pose(data, tag_coordinates):
     roll = np.arctan2(rot_matrix_imu_camera[2, 1], rot_matrix_imu_camera[2, 2])
     pitch = np.arctan2(-rot_matrix_imu_camera[2, 0], np.sqrt(rot_matrix_imu_camera[2, 1]**2 + rot_matrix_imu_camera[2, 2]**2))
     yaw = np.arctan2(rot_matrix_imu_camera[1, 0], rot_matrix_imu_camera[0, 0])
-
-    #print(tvec_imu_camera.flatten())
 
     #Reshape tvec_imu_camera to (3, 1)
     tvec_imu_camera = tvec_imu_camera.reshape(3, 1)
