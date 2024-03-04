@@ -4,7 +4,8 @@ import scipy.io
 from estimate_covariance import estimate_covariances
 from extract_pose_venky import estimate_pose, world_corners
 import matplotlib.pyplot as plt
-from sympy import symbols, Matrix, cos, sin
+import sympy as sp
+from sympy import Matrix
 
 # Function to load data from .mat file
 def load_data(filename):
@@ -81,18 +82,21 @@ class EKF:
         R_q = np.array([ cos_psi*cos_theta - sin_phi*sin_psi*sin_theta, -cos_phi*sin_psi, cos_psi*sin_theta + cos_theta*sin_phi*sin_psi,
                          cos_theta*sin_psi + cos_psi*sin_phi*sin_theta, cos_phi*cos_psi, sin_psi*sin_theta - cos_psi*cos_theta*sin_phi,
                          -cos_phi*sin_theta, sin_phi, cos_phi*cos_theta])
+        R_q = R_q.reshape(3, 3)
 
         #Compute inverse of G
         G = np.linalg.inv(G)
         
-        # Declare F as a 15*1 dimensional vector
-        F = np.zeros((15, 1))
+        # Declare F as a (15,) dimensional vector
+        F = np.zeros(15)
         #First 3 rows are pdot
         F[:3] = p_dot
         #Next 3 rows are Ginverse * wx, wy, wz
         F[3:6] = G @ np.array([wx, wy, wz])
-        #Next 3 rows are G + R_q * vx, vy, vz
-        F[6:9] = G + R_q @ np.array([vx, vy, vz])
+        # g is the gravity vector
+        g = np.array([0, 0, 9.81])
+        #Next 3 rows are g + R_q * vx, vy, vz
+        F[6:9] = g + R_q @ np.array([vx, vy, vz])
         #Next 3 rows are 0
         F[9:12] = 0
         #Last 3 rows are 0
@@ -103,25 +107,35 @@ class EKF:
 
         #Add the current state to F
 
+        print(F.shape)
+        print(x.shape)
+
         F = F + x
 
-        #Calculate the Jacobian matrix of F with respect to x and u using sympy
-        #Declare the symbols
-        p1, p2, p3, q1, q2, q3, p_dot1, p_dot2, p_dot3, bg1, bg2, bg3, ba1, ba2, ba3, wx, wy, wz, vx, vy, vz = symbols('p1 p2 p3 q1 q2 q3 p_dot1 p_dot2 p_dot3 bg1 bg2 bg3 ba1 ba2 ba3 wx wy wz vx vy vz')
-        #Declare the state vector
-        x = Matrix([p1, p2, p3, q1, q2, q3, p_dot1, p_dot2, p_dot3, bg1, bg2, bg3, ba1, ba2, ba3])
-        #Declare the control input
-        u = Matrix([wx, wy, wz, vx, vy, vz])
-        #Declare the process model function
-        #F = Matrix([p_dot1, p_dot2, p_dot3, q1 + wx*dt - bg1*dt, q2 + wy*dt - bg2*dt, q3 + wz*dt - bg3*dt, p_dot1 - ba1*dt, p_dot2 - ba2*dt, p_dot3 - ba3*dt, bg1, bg2, bg3, ba1, ba2, ba3])
-        #Calculate the Jacobian of F with respect to x and u
-        Jacobian_F = F.jacobian([x,u])
-        #Evaluate the Jacobian at the current state and control input
-        Jacobian_F = Jacobian_F.subs({p1: x[0], p2: x[1], p3: x[2], q1: x[3], q2: x[4], q3: x[5], p_dot1: x[6], p_dot2: x[7], p_dot3: x[8], bg1: x[9], bg2: x[10], bg3: x[11], ba1: x[12], ba2: x[13], ba3: x[14], wx: u[0], wy: u[1], wz: u[2], vx: u[3], vy: u[4], vz: u[5]})
-        #Convert the Jacobian to a numpy array
-        Jacobian_F = np.array(Jacobian_F).astype(np.float64)
-        #Return the Jacobian
-        return Jacobian_F
+        print(F.shape)
+
+        # Reshape F to be a column vector
+        F_column = F.reshape(-1, 1)
+
+        print(F_column.shape)
+
+        # Define symbolic variables
+        # Define symbolic variables
+        p1, p2, p3, q1, q2, q3, p_dot1, p_dot2, p_dot3, bg1, bg2, bg3, ba1, ba2, ba3, wx, wy, wz, vx, vy, vz = sp.symbols('p1 p2 p3 q1 q2 q3 p_dot1 p_dot2 p_dot3 bg1 bg2 bg3 ba1 ba2 ba3 wx wy wz vx vy vz')
+        symbols = [p1, p2, p3, q1, q2, q3, p_dot1, p_dot2, p_dot3, bg1, bg2, bg3, ba1, ba2, ba3, wx, wy, wz, vx, vy, vz]
+
+        # Convert F_column to a SymPy Matrix
+        F_matrix = sp.Matrix(F_column)
+
+        # Compute the Jacobian of the process model
+        Jacobian_J = F_matrix.jacobian(symbols)
+
+        # Convert the Jacobian to a numpy array
+        Jacobian_J_np = np.array(Jacobian_J)
+
+        print(Jacobian_J_np.shape) 
+
+        return Jacobian_J_np
 
     def observation_model(self, x):
         # Observation model function
