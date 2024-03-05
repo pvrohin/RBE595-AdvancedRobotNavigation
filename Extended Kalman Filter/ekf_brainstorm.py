@@ -47,15 +47,11 @@ nba = sp.Matrix([0, 0, 0])
 # Define the x_dot equation x_dot = f(x, u) = [p_dot, G_q_inv * u, g + R_q * u, 0, 0]
 x_dot = sp.Matrix([p_dot, G_q_inv * uw, g + R_q * ua, nbg, nba])
 
-print(x_dot)
-
-#F = x + x_dot@dt
+F = x + x_dot*dt
 
 # Compute the Jacobian of the process model
 Jacobian_J = x_dot.jacobian(x)
 
-print(Jacobian_J)
 
-print(Jacobian_J.shape)
 
 
