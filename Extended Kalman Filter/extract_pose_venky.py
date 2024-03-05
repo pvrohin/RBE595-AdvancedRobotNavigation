@@ -186,7 +186,7 @@ def world_corners():
 # Load data from .mat file
 data = load_data('data/studentdata0.mat')
 
-print(len(data['data']))
+#print(len(data['data']))
 
 # Loop through the data and print the tag IDs
 for i in range(len(data['data'])):
@@ -200,9 +200,6 @@ for i in range(len(data['data'])):
             data['data'][i][point] = data['data'][i][point].reshape(1, -1)
 
 tag_coordinates = world_corners()
-
-for i in range(len(tag_coordinates)):
-    print(tag_coordinates[i])
 
 estimated_positions = []
 estimated_orientations = []
@@ -223,10 +220,10 @@ for i in range(len(data['data'])):
     
     estimated_orientations.append(orientation)
 
-print(len(estimated_positions))
+#print(len(estimated_positions))
 
 #Print a sample element of data['vicon']
-print(len(data['vicon'][0]))
+#print(len(data['vicon'][0]))
 
 data['vicon'] = np.array(data['vicon'])
 #Transpose it

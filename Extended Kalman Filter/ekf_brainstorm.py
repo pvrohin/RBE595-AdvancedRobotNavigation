@@ -50,8 +50,11 @@ x_dot = sp.Matrix([p_dot, G_q_inv * uw, g + R_q * ua, nbg, nba])
 F = x + x_dot*dt
 
 # Compute the Jacobian of the process model
-Jacobian_J = x_dot.jacobian(x)
+Jacobian_J = F.jacobian(x)
 
+# Substitute F with sample values
+F = F.subs({p1: 0.0, p2: 0, p3: 0, q1: 0, q2: 0, q3: 0, p_dot1: 0, p_dot2: 0, p_dot3: 0, bg1: 0, bg2: 0, bg3: 0, ba1: 0, ba2: 0, ba3: 0, wx: 0, wy: 0, wz: 0, vx: 0, vy: 0, vz: 0, dt: 0.01})
 
+print(F)
 
 
