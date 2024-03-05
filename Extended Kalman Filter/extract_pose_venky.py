@@ -75,8 +75,6 @@ def estimate_pose(data, tag_coordinates):
 
     
     data['p4'] = data['p4'].T
-
-
     
     #image_corners_2d = np.vstack((data['p4'], data['p3'], data['p2'], data['p1']))
 
@@ -129,12 +127,9 @@ def estimate_pose(data, tag_coordinates):
     # pitch = np.arctan2(-rot_matrix[2, 0], np.sqrt(rot_matrix[2, 1]**2 + rot_matrix[2, 2]**2))
     # yaw = np.arctan2(rot_matrix[1, 0], rot_matrix[0, 0])
     
-
-
     # Convert rotation vector to rotation matrix
     rot_matrix, _ = cv2.Rodrigues(rvec)
 
-    
     # Extract Euler angles from rotation matrix
     roll = np.arctan2(rot_matrix[2, 1], rot_matrix[2, 2])
     pitch = np.arctan2(-rot_matrix[2, 0], np.sqrt(rot_matrix[2, 1]**2 + rot_matrix[2, 2]**2))
