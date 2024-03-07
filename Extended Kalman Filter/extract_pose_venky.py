@@ -59,8 +59,6 @@ def estimate_pose(data, tag_coordinates):
 
     data['p2'] = data['p2'].T
     
-
-
     data['p3'] = np.array(data['p3'])
 
     if len(data['p3']) == 1:
@@ -73,11 +71,8 @@ def estimate_pose(data, tag_coordinates):
     if len(data['p4']) == 1:
         data['p4'] = data['p4'].reshape(-1, 1)
 
-    
     data['p4'] = data['p4'].T
     
-    #image_corners_2d = np.vstack((data['p4'], data['p3'], data['p2'], data['p1']))
-
     image_corners_2d = []
     
     for i in range(len(data['p1'])):
@@ -89,9 +84,6 @@ def estimate_pose(data, tag_coordinates):
 
     image_corners_2d = np.array(image_corners_2d)
 
-    #print the shape of image_corners_2d
-
-    
     # Camera intrinsic parameters and distortion coefficients (from parameters.txt)
     camera_matrix = np.array([[314.1779, 0, 199.4848],
                           [0, 314.2218, 113.7838],
@@ -113,22 +105,8 @@ def estimate_pose(data, tag_coordinates):
     # Solve the PnP problem
     success, rvec, tvec = cv2.solvePnP(map_corners_3d, image_corners_2d, camera_matrix, dist_coeffs)
 
-    
     if not success:
         raise RuntimeError("PnP solver failed to converge")
-    
-    # # Transform camera coordinates to IMU coordinates
-    # rvec_imu, _ = cv2.Rodrigues(rot_matrix_imu_camera)
-    # rvec_imu_camera = rvec + rvec_imu
-    # tvec_imu_camera = tvec_imu_camera + tvec
-
-    # # Convert rotation vector to rotation matrix
-    # rot_matrix, _ = cv2.Rodrigues(rvec_imu_camera)
-
-    # # Extract Euler angles from rotation matrix
-    # roll = np.arctan2(rot_matrix[2, 1], rot_matrix[2, 2])
-    # pitch = np.arctan2(-rot_matrix[2, 0], np.sqrt(rot_matrix[2, 1]**2 + rot_matrix[2, 2]**2))
-    # yaw = np.arctan2(rot_matrix[1, 0], rot_matrix[0, 0])
     
     # Convert rotation vector to rotation matrix
     rot_matrix, _ = cv2.Rodrigues(rvec)

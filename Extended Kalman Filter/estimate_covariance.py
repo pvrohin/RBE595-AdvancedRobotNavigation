@@ -18,6 +18,8 @@ def estimate_covariances(data):
     data['vicon'] = data['vicon'].T
 
     tag_coordinates = world_corners()
+
+    estimated_poses = []
     
     # Iterate over each time step
     for i in range(n):
@@ -34,6 +36,7 @@ def estimate_covariances(data):
         z_hat = np.array(z_hat)
         #Reshape z_hat to be (6,)
         z_hat = z_hat.reshape(6,)
+        estimated_poses.append(z_hat)
 
         nu_t = z - z_hat
         
@@ -43,7 +46,7 @@ def estimate_covariances(data):
     # Compute sample covariance matrix
     R = R_sum / (n - 1)
     
-    return R
+    return R, estimated_poses
 
 # Call the function with the filename of the .mat file containing the data
 # Load data
@@ -62,5 +65,5 @@ for i in range(len(data['data'])):
             data['data'][i][point] = data['data'][i][point].reshape(1, -1)
 
 
-R = estimate_covariances(data)
+R, estimate_poses = estimate_covariances(data)
 #print("Estimated Observation Model Covariance (R):\n", R)

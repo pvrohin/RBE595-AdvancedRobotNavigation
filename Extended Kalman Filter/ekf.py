@@ -24,10 +24,10 @@ class EKF:
         P_pred = F @ P @ F.T + self.Q
         return x_pred, P_pred
 
-    def update(self, x_pred, P_pred, z, data):
+    def update(self, x_pred, P_pred, z, estimated_pose):
         # Update step
         H = self.compute_observation_model_jacobian(x_pred)
-        y = z - self.observation_model(x_pred, data)
+        y = z - estimated_pose
         S = H @ P_pred @ H.T + self.R
         S_float = S.astype(np.float64)
         K = P_pred @ H.T @ np.linalg.inv(S_float)
@@ -39,9 +39,6 @@ class EKF:
         dt = sp.symbols('dt')
 
         p1, p2, p3, q1, q2, q3, p_dot1, p_dot2, p_dot3, bg1, bg2, bg3, ba1, ba2, ba3 = sp.symbols('p1 p2 p3 q1 q2 q3 p_dot1 p_dot2 p_dot3 bg1 bg2 bg3 ba1 ba2 ba3')
-
-        # Define symbolic variables
-        #phi, theta, psi = sp.symbols('phi theta psi')
 
         # Define the matrix elements
         G_q = sp.Matrix([
@@ -91,9 +88,6 @@ class EKF:
 
     def process_model(self, x, delta_t, u):
         # Process model function
-        #p1, p2, p3, q1, q2, q3, p_dot1, p_dot2, p_dot3, bg1, bg2, bg3, ba1, ba2, ba3 = x
-        #wx, wy, wz, vx, vy, vz = u
-
         dt = sp.symbols('dt')
 
         p1, p2, p3, q1, q2, q3, p_dot1, p_dot2, p_dot3, bg1, bg2, bg3, ba1, ba2, ba3 = sp.symbols('p1 p2 p3 q1 q2 q3 p_dot1 p_dot2 p_dot3 bg1 bg2 bg3 ba1 ba2 ba3')
@@ -101,8 +95,6 @@ class EKF:
         wx, wy, wz, vx, vy, vz = sp.symbols('wx wy wz vx vy vz')
         
         F,_ = self.calculate_symbolic()
-
-        #print(F)
 
         # Substitue the values of x and u into F    
         F = F.subs({p1: x[0], p2: x[1], p3: x[2], q1: x[3], q2: x[4], q3: x[5], p_dot1: x[6], p_dot2: x[7], p_dot3: x[8], bg1: x[9], bg2: x[10], bg3: x[11], ba1: x[12], ba2: x[13], ba3: x[14], wx: u[0], wy: u[1], wz: u[2], vx: u[3], vy: u[4], vz: u[5], dt: delta_t})
@@ -113,15 +105,10 @@ class EKF:
         # Convert F to a numpy array of shape (15,)
         F_np = F_np.reshape(15,)
 
-        #print(F_np)
-
         # Return the process model
         return F_np
         
     def compute_process_model_jacobian(self, x, delta_t, u):
-
-        # p1, p2, p3, q1, q2, q3, p_dot1, p_dot2, p_dot3, bg1, bg2, bg3, ba1, ba2, ba3 = x
-        # wx, wy, wz, vx, vy, vz = u
 
         dt = sp.symbols('dt')
 
@@ -131,31 +118,20 @@ class EKF:
         
         _, Jacobian_J = self.calculate_symbolic()
 
-        #print(x.shape)
-
-        # x = [float(xi) for xi in x]
-        # u = [float(ui) for ui in u]
-
-        # Substitue the values of x and u into Jacobian_J
+        # Substitute the values of x and u into Jacobian_J
         Jacobian_J = Jacobian_J.subs({p1: x[0], p2: x[1], p3: x[2], q1: x[3], q2: x[4], q3: x[5], p_dot1: x[6], p_dot2: x[7], p_dot3: x[8], bg1: x[9], bg2: x[10], bg3: x[11], ba1: x[12], ba2: x[13], ba3: x[14], wx: u[0], wy: u[1], wz: u[2], vx: u[3], vy: u[4], vz: u[5], dt: delta_t})
 
         # Convert Jacobian_J to a numpy array
         Jacobian_J_np = np.array(Jacobian_J)
 
-        #print(Jacobian_J_np)
-
         return Jacobian_J_np
     
     # Write an observation model function that uses extract_pose to get the position and orientation of the drone
-
-        
-    def observation_model(self, x, data):
+    def observation_model(self, x, estimated_pose):
         # Observation model function
-        #tag_coordinates = world_corners()
-        print(data)
-        tag_coordinates = world_corners()
-        p, q = estimate_pose(data, tag_coordinates)
+        p, q = x[:3], x[3:6]
         return np.concatenate((p, q))
+        #return estimated_pose
 
     def compute_observation_model_jacobian(self, x):
         # Compute the Jacobian of the observation model
@@ -168,9 +144,6 @@ class EKF:
 filename = 'data/studentdata0.mat'
 data = load_data(filename)
 
-#Print a sample element of data
-#print(data['data'][40])
-
 # Loop through the data and print the tag IDs
 for i in range(len(data['data'])):
     # If the tag id is an integer, convert it to a list
@@ -182,8 +155,12 @@ for i in range(len(data['data'])):
         if len(data['data'][i][point].shape) == 1:
             data['data'][i][point] = data['data'][i][point].reshape(1, -1)
 
-# Estimate observation model covariance
-R = estimate_covariances(data)
+# Estimate observation model covariance and get estimated poses from extract_pose
+R, estimated_poses = estimate_covariances(data)
+
+print(len(estimated_poses))
+print(len(data['vicon']))
+print(len(data['data']))
 
 # Initialize EKF
 Q = np.eye(15) * 0.01  # Process noise covariance matrix (adjust as needed)
@@ -200,6 +177,8 @@ ground_truth_positions = []
 # #  Transpose it
 # data['vicon'] = data['vicon'].T
 
+tag_coordinates = world_corners()
+
 # Loop through data and store ground truth position and orientation from data['vicon'] and data['time']
 for i in range(len(data['vicon'])):
     # Extract ground truth position and orientation from data
@@ -211,28 +190,25 @@ for i in range(len(data['vicon'])):
     #ground_truth_orientations.append(ground_truth_orientation)
 
 # Iterate over each time step
-for i in range(len(data['data'])-1):
+for i in range(len(estimated_poses) - 1):
     if len(data['data'][i]['id']) == 0:
         continue
+    
     # Predict step
     dt = data['data'][i+1]['t'] - data['data'][i]['t']  # Time step
+    
     # IMU data is present in data[drpy][i] and data[acc][i], combine them to get control input
     u = np.concatenate((data['data'][i]['drpy'], data['data'][i]['acc']))
     x_pred, P_pred = ekf.predict(x, P, dt, u)
     
-    #print shape of x_pred
-    print(x_pred.shape)
-    print(x_pred)
-    print(P_pred.shape)
-    print(P_pred)
+    print("itr: ", i)
     
+    #position, orientation = estimate_pose(data['data'][i], tag_coordinates)
     # Update step
     # Get observation (ground truth) from motion capture
     z = np.concatenate((data['vicon'][i][:3], data['vicon'][i][3:6]))
-    x_updated, P_updated = ekf.update(x_pred, P_pred, z, data['data'][i])
-
-    # print(x_updated)
-    # print(x_updated.shape)
+    
+    x_updated, P_updated = ekf.update(x_pred, P_pred, z, estimated_poses[i])
     
     # Update state and covariance for next iteration
     x = x_updated
@@ -241,8 +217,6 @@ for i in range(len(data['data'])-1):
     # Visualize or store results as needed
     # Store estimated and ground truth positions
     estimated_positions.append(x[:3])  # Extract position from state estimate
-    #ground_truth_positions.append(z[:3])  # Extract position from ground truth
-
 
 # Convert lists to arrays for plotting
 estimated_positions = np.array(estimated_positions)
