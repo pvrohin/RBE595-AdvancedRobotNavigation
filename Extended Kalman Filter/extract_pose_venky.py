@@ -103,9 +103,12 @@ def estimate_pose(data, tag_coordinates):
 
     # Define the rotation of the camera with respect to the IMU (assuming yaw = pi/4)
     yaw = np.pi / 4
-    rot_matrix_imu_camera = np.array([[np.cos(yaw), -np.sin(yaw), 0],
-                                    [np.sin(yaw), np.cos(yaw), 0],
-                                    [0, 0, 1]])
+    # rot_matrix_imu_camera = np.array([[np.cos(yaw), -np.sin(yaw), 0],
+    #                                 [np.sin(yaw), np.cos(yaw), 0],
+    #                                 [0, 0, 1]])
+    
+    # Write a rotation matrix to rotate about x by 180 degrees and z by 45 degrees
+    rot_matrix_camera_imu = np.array([[1, 0, 0], [0, np.cos(np.pi), -np.sin(np.pi)], [0, np.sin(np.pi), np.cos(np.pi)]]) @ np.array([[np.cos(np.pi/4), -np.sin(np.pi/4), 0], [np.sin(np.pi/4), np.cos(np.pi/4), 0], [0, 0, 1]])
     
     # Solve the PnP problem
     success, rvec, tvec = cv2.solvePnP(map_corners_3d, image_corners_2d, camera_matrix, dist_coeffs)
@@ -130,17 +133,22 @@ def estimate_pose(data, tag_coordinates):
     # Convert rotation vector to rotation matrix
     rot_matrix, _ = cv2.Rodrigues(rvec)
 
-    # Extract Euler angles from rotation matrix
-    roll = np.arctan2(rot_matrix[2, 1], rot_matrix[2, 2])
-    pitch = np.arctan2(-rot_matrix[2, 0], np.sqrt(rot_matrix[2, 1]**2 + rot_matrix[2, 2]**2))
-    yaw = np.arctan2(rot_matrix[1, 0], rot_matrix[0, 0])
-
     #print(tvec_imu_camera.flatten())
 
     #Reshape tvec_imu_camera to (3, 1)
     tvec_imu_camera = tvec_imu_camera.reshape(3, 1)
 
     tvec = -rot_matrix.T @ tvec + -rot_matrix.T@ tvec_imu_camera
+
+    rot_matrix = rot_matrix.T
+
+    final_rot_matrix = rot_matrix@rot_matrix_camera_imu.T
+    
+    # Extract Euler angles from rotation matrix
+    roll = np.arctan2(final_rot_matrix[2, 1], final_rot_matrix[2, 2])
+    pitch = np.arctan2(-final_rot_matrix[2, 0], np.sqrt(final_rot_matrix[2, 1]**2 + final_rot_matrix[2, 2]**2))
+    yaw = np.arctan2(final_rot_matrix[1, 0], final_rot_matrix[0, 0])
+
     
     #return tvec_imu_camera.flatten(), np.array([roll, pitch, yaw])
     return tvec.reshape(3,), np.array([roll, pitch, yaw])
@@ -268,19 +276,36 @@ ax.legend()
 # ax.legend()
 
 #Plot orientation
-fig, axs = plt.subplots(3, 1, figsize=(10, 12))
-axs[0].plot(estimated_orientations[:, 0], label='Estimated Roll')
-axs[0].plot(ground_truth_orientations[:, 0], label='Ground Truth Roll')
-axs[0].set_ylabel('Roll (rad)')
-axs[1].plot(estimated_orientations[:, 1], label='Estimated Pitch')
-axs[1].plot(ground_truth_orientations[:, 1], label='Ground Truth Pitch')
-axs[1].set_ylabel('Pitch (rad)')
-axs[2].plot(estimated_orientations[:, 2], label='Estimated Yaw')
-axs[2].plot(ground_truth_orientations[:, 2], label='Ground Truth Yaw')
-axs[2].set_ylabel('Yaw (rad)')
-for ax in axs:
+# fig, axs = plt.subplots(3, 2, figsize=(10, 12))
+# axs[0].plot(estimated_orientations[:, 0], label='Estimated Roll')
+# axs[1].plot(ground_truth_orientations[:, 0], label='Ground Truth Roll')
+# axs[0].set_ylabel('Roll (rad)')
+# axs[2].plot(estimated_orientations[:, 1], label='Estimated Pitch')
+# axs[3].plot(ground_truth_orientations[:, 1], label='Ground Truth Pitch')
+# axs[1].set_ylabel('Pitch (rad)')
+# axs[4].plot(estimated_orientations[:, 2], label='Estimated Yaw')
+# axs[5].plot(ground_truth_orientations[:, 2], label='Ground Truth Yaw')
+# axs[2].set_ylabel('Yaw (rad)')
+# for ax in axs:
+#     ax.legend()
+# plt.tight_layout()
+# plt.show()
+
+# Plot all the estimated and ground truth orientations in 6 separate plots
+fig, axs = plt.subplots(3, 2, figsize=(10, 12))
+axs[0, 0].plot(estimated_orientations[:, 0], label='Estimated Roll')
+axs[0, 1].plot(ground_truth_orientations[:, 0], label='Ground Truth Roll')
+axs[0, 0].set_ylabel('Roll (rad)')
+axs[1, 0].plot(estimated_orientations[:, 1], label='Estimated Pitch')
+axs[1, 1].plot(ground_truth_orientations[:, 1], label='Ground Truth Pitch')
+axs[1, 0].set_ylabel('Pitch (rad)')
+axs[2, 0].plot(estimated_orientations[:, 2], label='Estimated Yaw')
+axs[2, 1].plot(ground_truth_orientations[:, 2], label='Ground Truth Yaw')
+axs[2, 0].set_ylabel('Yaw (rad)')
+for ax in axs.flatten():
     ax.legend()
 plt.tight_layout()
 plt.show()
+
 
 

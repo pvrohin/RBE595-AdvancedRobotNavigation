@@ -24,10 +24,10 @@ class EKF:
         P_pred = F @ P @ F.T + self.Q
         return x_pred, P_pred
 
-    def update(self, x_pred, P_pred, z, data):
+    def update(self, x_pred, P_pred, z):
         # Update step
         H = self.compute_observation_model_jacobian(x_pred)
-        y = z - self.observation_model(x_pred, data)
+        y = z - self.observation_model(x_pred)
         S = H @ P_pred @ H.T + self.R
         S_float = S.astype(np.float64)
         K = P_pred @ H.T @ np.linalg.inv(S_float)
@@ -145,16 +145,11 @@ class EKF:
         #print(Jacobian_J_np)
 
         return Jacobian_J_np
-    
-    # Write an observation model function that uses extract_pose to get the position and orientation of the drone
-
         
-    def observation_model(self, x, data):
+    def observation_model(self, x):
         # Observation model function
         #tag_coordinates = world_corners()
-        print(data)
-        tag_coordinates = world_corners()
-        p, q = estimate_pose(data, tag_coordinates)
+        p, q = x[:3], x[3:6]
         return np.concatenate((p, q))
 
     def compute_observation_model_jacobian(self, x):
@@ -200,16 +195,6 @@ ground_truth_positions = []
 # #  Transpose it
 # data['vicon'] = data['vicon'].T
 
-# Loop through data and store ground truth position and orientation from data['vicon'] and data['time']
-for i in range(len(data['vicon'])):
-    # Extract ground truth position and orientation from data
-    ground_truth_position = data['vicon'][i][:3]
-    ground_truth_orientation = data['vicon'][i][3:6]
-    
-    # Append ground truth data to lists
-    ground_truth_positions.append(ground_truth_position)
-    #ground_truth_orientations.append(ground_truth_orientation)
-
 # Iterate over each time step
 for i in range(len(data['data'])-1):
     if len(data['data'][i]['id']) == 0:
@@ -227,9 +212,8 @@ for i in range(len(data['data'])-1):
     print(P_pred)
     
     # Update step
-    # Get observation (ground truth) from motion capture
-    z = np.concatenate((data['vicon'][i][:3], data['vicon'][i][3:6]))
-    x_updated, P_updated = ekf.update(x_pred, P_pred, z, data['data'][i])
+    z = data['vicon'][i][:6]  # Get observation (ground truth) from motion capture
+    x_updated, P_updated = ekf.update(x_pred, P_pred, z)
 
     # print(x_updated)
     # print(x_updated.shape)
@@ -241,8 +225,7 @@ for i in range(len(data['data'])-1):
     # Visualize or store results as needed
     # Store estimated and ground truth positions
     estimated_positions.append(x[:3])  # Extract position from state estimate
-    #ground_truth_positions.append(z[:3])  # Extract position from ground truth
-
+    ground_truth_positions.append(z[:3])  # Extract position from ground truth
 
 # Convert lists to arrays for plotting
 estimated_positions = np.array(estimated_positions)
