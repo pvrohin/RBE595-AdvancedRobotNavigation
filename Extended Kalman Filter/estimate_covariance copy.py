@@ -13,6 +13,10 @@ def estimate_covariances(data):
     n = len(data['data'])  # Number of time steps
     R_sum = np.zeros((6, 6))  # Initialize sum of outer products
 
+    data['vicon'] = np.array(data['vicon'])
+    #  Transpose it
+    data['vicon'] = data['vicon'].T
+
     tag_coordinates = world_corners()
     
     # Iterate over each time step
@@ -41,29 +45,22 @@ def estimate_covariances(data):
     
     return R
 
-def main():
-    # Call the function with the filename of the .mat file containing the data
-    # Load data
-    filename = 'data/studentdata0.mat'
-    data = load_data(filename)
+# Call the function with the filename of the .mat file containing the data
+# Load data
+filename = 'data/studentdata0.mat'
+data = load_data(filename)
 
-    #Loop through the data and print the tag IDs
-    for i in range(len(data['data'])):
-        # If the tag id is an integer, convert it to a list
-        if isinstance(data['data'][i]['id'], int):
-            data['data'][i]['id'] = [data['data'][i]['id']]
-        
-        # Check if p1, p2, p3, p4 are 1D and convert them to 2D if they are
-        for point in ['p1', 'p2', 'p3', 'p4']:
-            if len(data['data'][i][point].shape) == 1:
-                data['data'][i][point] = data['data'][i][point].reshape(1, -1)
+# Loop through the data and print the tag IDs
+for i in range(len(data['data'])):
+    # If the tag id is an integer, convert it to a list
+    if isinstance(data['data'][i]['id'], int):
+        data['data'][i]['id'] = [data['data'][i]['id']]
+    
+    # Check if p1, p2, p3, p4 are 1D and convert them to 2D if they are
+    for point in ['p1', 'p2', 'p3', 'p4']:
+        if len(data['data'][i][point].shape) == 1:
+            data['data'][i][point] = data['data'][i][point].reshape(1, -1)
 
-    data['vicon'] = np.array(data['vicon'])
-    #  Transpose it
-    data['vicon'] = data['vicon'].T
 
-    R = estimate_covariances(data)
-    print("Estimated Observation Model Covariance (R):\n", R)
-
-if __name__ == "__main__":
-    main()
+R = estimate_covariances(data)
+print("Estimated Observation Model Covariance (R):\n", R)

@@ -1,11 +1,9 @@
-import cv2
 import numpy as np
 from scipy.linalg import block_diag
 import scipy.io
-import matplotlib.pyplot as plt
-from mpl_toolkits.mplot3d import Axes3D
 from estimate_covariance import estimate_covariances
 from extract_pose_venky import estimate_pose, world_corners
+import matplotlib.pyplot as plt
 import sympy as sp
 from sympy import Matrix
 
@@ -127,6 +125,13 @@ class EKF:
         Jacobian_J_np = np.array(Jacobian_J)
 
         return Jacobian_J_np
+    
+    # Write an observation model function that uses extract_pose to get the position and orientation of the drone
+    def observation_model(self, x, estimated_pose):
+        # Observation model function
+        p, q = estimated_pose[:3], estimated_pose[3:]
+        return np.concatenate((p, q))
+        #return estimated_pose
 
     def compute_observation_model_jacobian(self):
         # Compute the Jacobian of the observation model
@@ -135,7 +140,6 @@ class EKF:
         H[3:, 3:6] = np.eye(3)
         return H
 
-# Call the function with the filename of the .mat file containing the data
 # Load data
 filename = 'data/studentdata0.mat'
 data = load_data(filename)
@@ -151,20 +155,15 @@ for i in range(len(data['data'])):
         if len(data['data'][i][point].shape) == 1:
             data['data'][i][point] = data['data'][i][point].reshape(1, -1)
 
-data['vicon'] = np.array(data['vicon'])
-#  Transpose it
-data['vicon'] = data['vicon'].T
+# Estimate observation model covariance and get estimated poses from extract_pose
+R, estimated_poses = estimate_covariances(data)
 
-#Estimate observation model covariance and get estimated poses from extract_pose
-R = np.array([[ 0.64810354 , 0.00507018 , 0.03933114  ,0.00416992, -0.03576452 , 0.0299308 ],
- [ 0.00507018 , 0.3001099 , -0.02684017, -0.03552516 , 0.01032146 ,-0.00271169],
- [ 0.03933114, -0.02684017,  0.0479052 , -0.01483446, 0.00762338, -0.01163921],
- [ 0.00416992, -0.03552516, -0.01483446,  0.06967535, -0.01529277, 0.00273384],
- [-0.03576452 , 0.01032146,  0.00762338, -0.01529277 , 0.01710786 ,-0.00967626],
- [ 0.0299308 , -0.00271169, -0.01163921 , 0.00273384 ,-0.00967626 , 0.01276012]])
+print(len(estimated_poses))
+print(len(data['vicon']))
+print(len(data['data']))
 
 # Initialize EKF
-Q = np.eye(15) * 5  # Process noise covariance matrix (adjust as needed)
+Q = np.eye(15) * 0.01  # Process noise covariance matrix (adjust as needed)
 ekf = EKF(Q, R)
 
 # Initial state estimate and covariance
@@ -173,7 +172,10 @@ P = np.eye(15) * 0.01  # Initialize covariance matrix (adjust as needed)
 
 estimated_positions = []
 ground_truth_positions = []
-ground_truth_orientations = []
+
+# data['vicon'] = np.array(data['vicon'])
+# #  Transpose it
+# data['vicon'] = data['vicon'].T
 
 tag_coordinates = world_corners()
 
@@ -185,10 +187,10 @@ for i in range(len(data['vicon'])):
     
     # Append ground truth data to lists
     ground_truth_positions.append(ground_truth_position)
-    ground_truth_orientations.append(ground_truth_orientation)
+    #ground_truth_orientations.append(ground_truth_orientation)
 
 # Iterate over each time step
-for i in range(len(data['data'])-1):
+for i in range(len(estimated_poses) - 1):
     if len(data['data'][i]['id']) == 0:
         continue
     
@@ -205,12 +207,8 @@ for i in range(len(data['data'])-1):
     # Update step
     # Get observation (ground truth) from motion capture
     z = np.concatenate((data['vicon'][i][:3], data['vicon'][i][3:6]))
-
-    position, orientation = estimate_pose(data['data'][i], tag_coordinates)
-    # put position and orientation in a single array of shape (6,)
-    estimated_pose = np.concatenate((position, orientation))
     
-    x_updated, P_updated = ekf.update(x_pred, P_pred, z, estimated_pose)
+    x_updated, P_updated = ekf.update(x_pred, P_pred, z, estimated_poses[i])
     
     # Update state and covariance for next iteration
     x = x_updated
@@ -223,15 +221,6 @@ for i in range(len(data['data'])-1):
 # Convert lists to arrays for plotting
 estimated_positions = np.array(estimated_positions)
 ground_truth_positions = np.array(ground_truth_positions)
-
-# if any values in estimated positions are greater than 10 and less than -10, make it 0
-# for i in range(len(estimated_positions)):
-#     if estimated_positions[i][0] > 10 or estimated_positions[i][0] < -10:
-#         estimated_positions[i][0] = 0
-#     if estimated_positions[i][1] > 10 or estimated_positions[i][1] < -10:
-#         estimated_positions[i][1] = 0
-#     if estimated_positions[i][2] > 10 or estimated_positions[i][2] < -10:
-#         estimated_positions[i][2] = 0
 
 # Plot 3D trajectory
 fig = plt.figure()
