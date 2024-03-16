@@ -145,7 +145,8 @@ for i in range(len(data['data'])-1):
     dt = data['data'][i+1]['t'] - data['data'][i]['t']  # Time step
     
     # IMU data is present in data[drpy][i] and data[acc][i], combine them to get control input
-    u = np.concatenate((data['data'][i]['omg'], data['data'][i]['acc']))
+    #u = np.concatenate((data['data'][i]['omg'], data['data'][i]['acc']))
+    u = np.concatenate((data['vicon'][i][6:9], data['vicon'][i][9:12]))
     x_pred, P_pred = predict(x, P, dt, u, Q)
     
     print("itr: ", i)

@@ -64,6 +64,11 @@ def main():
 
     R = estimate_covariances(data)
     print("Estimated Observation Model Covariance (R):\n", R)
+    eigen_values, eigen_vectors = np.linalg.eig(R)
+    print("Eigen Values")
+    print(eigen_values)
+    print("Eigen Vectors")
+    print(eigen_vectors)
 
 if __name__ == "__main__":
     main()

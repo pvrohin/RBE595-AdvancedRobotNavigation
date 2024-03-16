@@ -137,7 +137,7 @@ class EKF:
 
 # Call the function with the filename of the .mat file containing the data
 # Load data
-filename = 'data/studentdata0.mat'
+filename = 'data/studentdata1.mat'
 data = load_data(filename)
 
 # Loop through the data and print the tag IDs
@@ -156,19 +156,32 @@ data['vicon'] = np.array(data['vicon'])
 data['vicon'] = data['vicon'].T
 
 #Estimate observation model covariance and get estimated poses from extract_pose
-R = np.array([[ 0.64810354 , 0.00507018 , 0.03933114  ,0.00416992, -0.03576452 , 0.0299308 ],
- [ 0.00507018 , 0.3001099 , -0.02684017, -0.03552516 , 0.01032146 ,-0.00271169],
- [ 0.03933114, -0.02684017,  0.0479052 , -0.01483446, 0.00762338, -0.01163921],
- [ 0.00416992, -0.03552516, -0.01483446,  0.06967535, -0.01529277, 0.00273384],
- [-0.03576452 , 0.01032146,  0.00762338, -0.01529277 , 0.01710786 ,-0.00967626],
- [ 0.0299308 , -0.00271169, -0.01163921 , 0.00273384 ,-0.00967626 , 0.01276012]])
+# R = np.array([[ 0.64810354 , 0.00507018 , 0.03933114  ,0.00416992, -0.03576452 , 0.0299308 ],
+#  [ 0.00507018 , 0.3001099 , -0.02684017, -0.03552516 , 0.01032146 ,-0.00271169],
+#  [ 0.03933114, -0.02684017,  0.0479052 , -0.01483446, 0.00762338, -0.01163921],
+#  [ 0.00416992, -0.03552516, -0.01483446,  0.06967535, -0.01529277, 0.00273384],
+#  [-0.03576452 , 0.01032146,  0.00762338, -0.01529277 , 0.01710786 ,-0.00967626],
+#  [ 0.0299308 , -0.00271169, -0.01163921 , 0.00273384 ,-0.00967626 , 0.01276012]])
+
+R = np.array([
+    [4.01277933e-03, 1.18288647e-03, -2.00353030e-03, -5.74159527e-04, 2.58453957e-03, 3.31938031e-04],
+    [1.18288647e-03, 5.43967539e-03, -4.66980820e-03, -3.87141261e-03, 5.64105295e-04, 5.92553237e-04],
+    [2.00353030e-03, -4.66980820e-03, 1.24291009e-02, 2.44736338e-03, -2.65707665e-04, -1.24055364e-03],
+    [5.74159527e-04, -3.87141261e-03, 2.44736338e-03, 3.53193690e-03, -3.22706410e-04, -3.36813351e-04],
+    [2.58453957e-03, 5.64105295e-04, -2.65707665e-04, -3.22706410e-04, 2.63705969e-03, 4.27377172e-05],
+    [3.31938031e-04, 5.92553237e-04, -1.24055364e-03, -3.36813351e-04, 4.27377172e-05, 1.89300698e-04]
+])
 
 # Initialize EKF
-Q = np.eye(15) * 5  # Process noise covariance matrix (adjust as needed)
+Q = np.eye(15) * 0.01  # Process noise covariance matrix (adjust as needed)
 ekf = EKF(Q, R)
 
 # Initial state estimate and covariance
 x = np.zeros(15)  # Initialize state vector (adjust as needed)
+x[:3] = data['vicon'][0][:3]
+x[3:6] = data['vicon'][0][3:6]
+x[6:9] = data['vicon'][0][6:9]
+x[9:] = 0
 P = np.eye(15) * 0.01  # Initialize covariance matrix (adjust as needed)
 
 estimated_positions = []
@@ -196,7 +209,8 @@ for i in range(len(data['data'])-1):
     dt = data['data'][i+1]['t'] - data['data'][i]['t']  # Time step
     
     # IMU data is present in data[drpy][i] and data[acc][i], combine them to get control input
-    u = np.concatenate((data['data'][i]['drpy'], data['data'][i]['acc']))
+    u = np.concatenate((data['data'][i]['omg'], data['data'][i]['acc']))
+    #u = np.concatenate((data['vicon'][i][6:9], data['vicon'][i][9:12]))
     x_pred, P_pred = ekf.predict(x, P, dt, u)
     
     print("itr: ", i)
@@ -224,7 +238,7 @@ for i in range(len(data['data'])-1):
 estimated_positions = np.array(estimated_positions)
 ground_truth_positions = np.array(ground_truth_positions)
 
-# if any values in estimated positions are greater than 10 and less than -10, make it 0
+#if any values in estimated positions are greater than 10 and less than -10, make it 0
 # for i in range(len(estimated_positions)):
 #     if estimated_positions[i][0] > 10 or estimated_positions[i][0] < -10:
 #         estimated_positions[i][0] = 0
