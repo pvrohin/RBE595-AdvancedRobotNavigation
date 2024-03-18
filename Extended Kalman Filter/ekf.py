@@ -29,7 +29,8 @@ class EKF:
     def update(self, x_pred, P_pred, z, estimated_pose):
         # Update step
         H = self.compute_observation_model_jacobian()
-        y = z - estimated_pose
+        #y = z - estimated_pose
+        y = estimated_pose - H @ x_pred
         S = H @ P_pred @ H.T + self.R
         S_float = S.astype(np.float64)
         K = P_pred @ H.T @ np.linalg.inv(S_float)
@@ -203,32 +204,47 @@ for i in range(len(data['vicon'])):
 # Iterate over each time step
 for i in range(len(data['data'])-1):
     if len(data['data'][i]['id']) == 0:
-        continue
-    
-    # Predict step
-    dt = data['data'][i+1]['t'] - data['data'][i]['t']  # Time step
-    
-    # IMU data is present in data[drpy][i] and data[acc][i], combine them to get control input
-    u = np.concatenate((data['data'][i]['omg'], data['data'][i]['acc']))
-    #u = np.concatenate((data['vicon'][i][6:9], data['vicon'][i][9:12]))
-    x_pred, P_pred = ekf.predict(x, P, dt, u)
-    
-    print("itr: ", i)
-    
-    #position, orientation = estimate_pose(data['data'][i], tag_coordinates)
-    # Update step
-    # Get observation (ground truth) from motion capture
-    z = np.concatenate((data['vicon'][i][:3], data['vicon'][i][3:6]))
+        # Predict step
+        dt = data['data'][i+1]['t'] - data['data'][i]['t']  # Time step
 
-    position, orientation = estimate_pose(data['data'][i], tag_coordinates)
-    # put position and orientation in a single array of shape (6,)
-    estimated_pose = np.concatenate((position, orientation))
-    
-    x_updated, P_updated = ekf.update(x_pred, P_pred, z, estimated_pose)
-    
-    # Update state and covariance for next iteration
-    x = x_updated
-    P = P_updated
+        print("itr: ", i)
+        
+        # IMU data is present in data[drpy][i] and data[acc][i], combine them to get control input
+        u = np.concatenate((data['data'][i]['omg'], data['data'][i]['acc']))
+        #u = np.concatenate((data['vicon'][i][6:9], data['vicon'][i][9:12]))
+        x_pred, P_pred = ekf.predict(x, P, dt, u)
+
+        # Update state and covariance for next iteration
+        x = x_pred
+        P = P_pred
+
+    else:
+        # Predict step
+        dt = data['data'][i+1]['t'] - data['data'][i]['t']  # Time step
+        
+        # IMU data is present in data[drpy][i] and data[acc][i], combine them to get control input
+        u = np.concatenate((data['data'][i]['omg'], data['data'][i]['acc']))
+        #u = np.concatenate((data['vicon'][i][6:9], data['vicon'][i][9:12]))
+        x_pred, P_pred = ekf.predict(x, P, dt, u)
+        
+        print("itr: ", i)
+        
+        #position, orientation = estimate_pose(data['data'][i], tag_coordinates)
+        # Update step
+        # Get observation (ground truth) from motion capture
+        #z = np.concatenate((data['vicon'][i][:3], data['vicon'][i][3:6]))
+        # Define z by concatenating the position and orientation from x_pred
+        z = x_pred[:6]
+
+        position, orientation = estimate_pose(data['data'][i], tag_coordinates)
+        # put position and orientation in a single array of shape (6,)
+        estimated_pose = np.concatenate((position, orientation))
+        
+        x_updated, P_updated = ekf.update(x_pred, P_pred, z, estimated_pose)
+        
+        # Update state and covariance for next iteration
+        x = x_updated
+        P = P_updated
 
     # Visualize or store results as needed
     # Store estimated and ground truth positions
