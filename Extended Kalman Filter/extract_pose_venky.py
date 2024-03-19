@@ -171,7 +171,7 @@ def world_corners():
 
 def main():
     # Load data from .mat file
-    data = load_data('data/studentdata1.mat')
+    data = load_data('data/studentdata7.mat')
 
     #print(len(data['data']))
 
