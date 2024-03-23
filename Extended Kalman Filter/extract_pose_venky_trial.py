@@ -11,7 +11,6 @@ def load_data(filename):
 def estimate_pose(data, tag_coordinates):
     
     # Extract 3D coordinates of AprilTag corners from the map layout
-
     map_corners_3d = []
     for data_id in data['id']:
         for id, corners in tag_coordinates:
@@ -24,7 +23,6 @@ def estimate_pose(data, tag_coordinates):
                 
     # Extract 2D projections of AprilTag corners from the image data
     # the format of the p1 through p4 arrays are not[ [x1, y1], [x2, y2], [x3, y3]] like I presumed but its actually [ [x1, x2, x3], [y1, y2, y3]]
-
     data['p1'] = np.array(data['p1'])
 
     if len(data['p1']) == 1:
@@ -57,7 +55,6 @@ def estimate_pose(data, tag_coordinates):
     
     for i in range(len(data['p1'])):
         image_corners_2d.append(data['p4'][i])
-        # , data['p3'][i], data['p2'][i], data['p1'][i]])
         image_corners_2d.append(data['p3'][i])
         image_corners_2d.append(data['p2'][i])
         image_corners_2d.append(data['p1'][i])
@@ -69,15 +66,6 @@ def estimate_pose(data, tag_coordinates):
                           [0, 314.2218, 113.7838],
                           [0, 0, 1]])  # Replace with actual camera matrix
     dist_coeffs = np.array([-0.438607, 0.248625, 0.00072, -0.000476, -0.0911])     # Replace with actual distortion coefficients
-
-    # Define the 3D coordinates of the camera with respect to the IMU
-    tvec_imu_camera = np.array([-0.04, 0.0, -0.03])  # Translation vector from IMU to camera
-
-    # Define the rotation of the camera with respect to the IMU (assuming yaw = pi/4)
-    yaw = np.pi / 4
-    rot_matrix_imu_camera = np.array([[np.cos(yaw), -np.sin(yaw), 0],
-                                    [np.sin(yaw), np.cos(yaw), 0],
-                                    [0, 0, 1]])
     
     # Solve the PnP problem
     success, rvec, tvec = cv2.solvePnP(map_corners_3d, image_corners_2d, camera_matrix, dist_coeffs)
@@ -85,22 +73,57 @@ def estimate_pose(data, tag_coordinates):
     if not success:
         raise RuntimeError("PnP solver failed to converge")
     
-    #Transform camera coordinates to IMU coordinates
-    rot_matrix, _ = cv2.Rodrigues(rvec)
-    rot_matrix_imu_camera = rot_matrix@rot_matrix_imu_camera
-
-    # Extract Euler angles from rotation matrix
-    roll = np.arctan2(rot_matrix_imu_camera[2, 1], rot_matrix_imu_camera[2, 2])
-    pitch = np.arctan2(-rot_matrix_imu_camera[2, 0], np.sqrt(rot_matrix_imu_camera[2, 1]**2 + rot_matrix_imu_camera[2, 2]**2))
-    yaw = np.arctan2(rot_matrix_imu_camera[1, 0], rot_matrix_imu_camera[0, 0])
-
-    #Reshape tvec_imu_camera to (3, 1)
-    tvec_imu_camera = tvec_imu_camera.reshape(3, 1)
-
-    tvec = -rot_matrix.T @ tvec + -rot_matrix.T@ tvec_imu_camera
+    # Write a rotation matrix for rotation about z-axis
+    Rz = np.array([[np.cos(np.pi/4), -np.sin(np.pi/4), 0], 
+                  [np.sin(np.pi/4), np.cos(np.pi/4), 0], 
+                  [0, 0, 1],
+                  ])
     
-    #return tvec_imu_camera.flatten(), np.array([roll, pitch, yaw])
-    return tvec.reshape(3,), np.array([roll, pitch, yaw])
+    # Write a rotation matrix for rotation about x-axis by 180 degrees
+    Rx = np.array([[1, 0, 0], 
+                  [0, -1, 0], 
+                  [0, 0, -1],
+                  ])
+    
+    rotation_matrix = np.dot(Rz, Rx)
+
+    # Combine rotation matrix and translation vector into a single pose matrix
+    cam_to_drone = np.array(
+        [[rotation_matrix[0, 0], rotation_matrix[0, 1], rotation_matrix[0, 2], -0.04],
+            [rotation_matrix[1, 0], rotation_matrix[1, 1], rotation_matrix[1, 2], 0],
+            [rotation_matrix[2, 0], rotation_matrix[2, 1], rotation_matrix[2, 2], -0.03],
+            [0, 0, 0, 1]]
+    )
+
+    orientation = cv2.Rodrigues(rvec)[0]
+
+    cam_to_world = np.array([np.concatenate((orientation[0],tvec[0])),
+                             np.concatenate((orientation[1],tvec[1])),
+                            np.concatenate((orientation[2],tvec[2])),
+                            [0, 0, 0, 1]])
+    
+    drone_to_world = np.dot(np.linalg.inv(cam_to_world), cam_to_drone)
+
+    position = drone_to_world[:3, 3]
+
+    orientation = rotation_matrix_to_euler_angles(drone_to_world[:3, :3])
+
+    return position, orientation
+
+def rotation_matrix_to_euler_angles(rotation_matrix):
+    """
+    rotation_matrix_to_euler_angles converts a 3x3 rotation matrix to
+    a tuple of Euler angles in XZY rotation order.
+    """
+    r11, r12, r13 = rotation_matrix[0]
+    r21, r22, r23 = rotation_matrix[1]
+    r31, r32, r33 = rotation_matrix[2]
+
+    yaw = np.arctan(-r12 / r22)
+    roll = np.arctan(r32 * np.cos(yaw) / r22)
+    pitch = np.arctan(-r31 / r33)
+
+    return yaw, pitch, roll
 
 def world_corners():
     tag_size = 0.152  # meters
@@ -213,30 +236,38 @@ ax.set_zlabel('Z')
 ax.set_title('Drone Trajectory')
 ax.legend()
     
-#plot trajectory as dots
-# fig = plt.figure(figsize=(10, 8))
-# ax = fig.add_subplot(111, projection='3d')
-# ax.scatter(estimated_positions[:, 0], estimated_positions[:, 1], estimated_positions[:, 2], label='Estimated Trajectory')
-# ax.scatter(ground_truth_positions[:, 0], ground_truth_positions[:, 1], ground_truth_positions[:, 2], label='Ground Truth Trajectory')
-# ax.set_xlabel('X')
-# ax.set_ylabel('Y')
-# ax.set_zlabel('Z')
-# ax.set_title('Drone Trajectory')
-# ax.legend()
+#Plot the estimated and ground truth orientations with the same length of data
+fig, ax = plt.subplots(3, 1, figsize=(10, 10))
+ax[0].plot(estimated_orientations[:, 0], label='Estimated Roll')
+ax[0].plot(ground_truth_orientations[:, 0], label='Ground Truth Roll')
+ax[0].set_xlabel('Time')
+ax[0].set_ylabel('Roll')
+ax[0].set_title('Estimated vs. Ground Truth Roll')
+ax[0].legend()
+ax[1].plot(estimated_orientations[:, 1], label='Estimated Pitch')
+ax[1].plot(ground_truth_orientations[:, 1], label='Ground Truth Pitch')
+ax[1].set_xlabel('Time')
+ax[1].set_ylabel('Pitch')
+ax[1].legend()
+ax[2].plot(estimated_orientations[:, 2], label='Estimated Yaw')
+ax[2].plot(ground_truth_orientations[:, 2], label='Ground Truth Yaw')
+ax[2].set_xlabel('Time')
+ax[2].set_ylabel('Yaw')
+ax[2].legend()
 
 #Plot orientation
-fig, axs = plt.subplots(3, 1, figsize=(10, 12))
-axs[0].plot(estimated_orientations[:, 0], label='Estimated Roll')
-axs[0].plot(ground_truth_orientations[:, 0], label='Ground Truth Roll')
-axs[0].set_ylabel('Roll (rad)')
-axs[1].plot(estimated_orientations[:, 1], label='Estimated Pitch')
-axs[1].plot(ground_truth_orientations[:, 1], label='Ground Truth Pitch')
-axs[1].set_ylabel('Pitch (rad)')
-axs[2].plot(estimated_orientations[:, 2], label='Estimated Yaw')
-axs[2].plot(ground_truth_orientations[:, 2], label='Ground Truth Yaw')
-axs[2].set_ylabel('Yaw (rad)')
-for ax in axs:
-    ax.legend()
+# fig, axs = plt.subplots(3, 1, figsize=(10, 12))
+# axs[0].plot(estimated_orientations[:, 0], label='Estimated Roll')
+# axs[0].plot(ground_truth_orientations[:, 0], label='Ground Truth Roll')
+# axs[0].set_ylabel('Roll (rad)')
+# axs[1].plot(estimated_orientations[:, 1], label='Estimated Pitch')
+# axs[1].plot(ground_truth_orientations[:, 1], label='Ground Truth Pitch')
+# axs[1].set_ylabel('Pitch (rad)')
+# axs[2].plot(estimated_orientations[:, 2], label='Estimated Yaw')
+# axs[2].plot(ground_truth_orientations[:, 2], label='Ground Truth Yaw')
+# axs[2].set_ylabel('Yaw (rad)')
+# for ax in axs:
+#     ax.legend()
 plt.tight_layout()
 plt.show()
 

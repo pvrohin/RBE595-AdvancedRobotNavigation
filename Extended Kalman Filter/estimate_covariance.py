@@ -1,6 +1,6 @@
 import numpy as np
 import scipy.io
-from extract_pose_venky import estimate_pose, world_corners
+from extract_pose_final import estimate_pose, world_corners
 
 # Function to load data from .mat file
 def load_data(filename):
@@ -42,33 +42,39 @@ def estimate_covariances(data):
     return R
 
 def main():
-    # Call the function with the filename of the .mat file containing the data
-    # Load data
-    filename = 'data/studentdata0.mat'
-    data = load_data(filename)
+    R_matrices = []
+    #Loop through all the datasets
+    for i in range(8):
+        # Call the function with the filename of the .mat file containing the data
+        # Load data
+        filename = 'data/studentdata{}.mat'.format(i)
+        data = load_data(filename)
 
-    #Loop through the data and print the tag IDs
-    for i in range(len(data['data'])):
-        # If the tag id is an integer, convert it to a list
-        if isinstance(data['data'][i]['id'], int):
-            data['data'][i]['id'] = [data['data'][i]['id']]
+        #Loop through the data and print the tag IDs
+        for i in range(len(data['data'])):
+            # If the tag id is an integer, convert it to a list
+            if isinstance(data['data'][i]['id'], int):
+                data['data'][i]['id'] = [data['data'][i]['id']]
+            
+            # Check if p1, p2, p3, p4 are 1D and convert them to 2D if they are
+            for point in ['p1', 'p2', 'p3', 'p4']:
+                if len(data['data'][i][point].shape) == 1:
+                    data['data'][i][point] = data['data'][i][point].reshape(1, -1)
+
+        data['vicon'] = np.array(data['vicon'])
+        #  Transpose it
+        data['vicon'] = data['vicon'].T
+
+        R = estimate_covariances(data)
+
+        #Store all the R matrices in a list
+        R_matrices.append(R)
+
+    # Calculate the average of the R matrices
+    R_avg = np.mean(R_matrices, axis=0)
+
+    print(R_avg)
         
-        # Check if p1, p2, p3, p4 are 1D and convert them to 2D if they are
-        for point in ['p1', 'p2', 'p3', 'p4']:
-            if len(data['data'][i][point].shape) == 1:
-                data['data'][i][point] = data['data'][i][point].reshape(1, -1)
-
-    data['vicon'] = np.array(data['vicon'])
-    #  Transpose it
-    data['vicon'] = data['vicon'].T
-
-    R = estimate_covariances(data)
-    print("Estimated Observation Model Covariance (R):\n", R)
-    eigen_values, eigen_vectors = np.linalg.eig(R)
-    print("Eigen Values")
-    print(eigen_values)
-    print("Eigen Vectors")
-    print(eigen_vectors)
 
 if __name__ == "__main__":
     main()
