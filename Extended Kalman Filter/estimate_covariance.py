@@ -71,10 +71,7 @@ def main():
         R_matrices.append(R)
 
     # Calculate the average of the R matrices
-    R_avg = np.mean(R_matrices, axis=0)
-
-    print(R_avg)
+    R_avg = (1/(len(R_matrices) - 1))*np.sum(R_matrices, axis=0)
         
-
 if __name__ == "__main__":
     main()
