@@ -1,5 +1,7 @@
 Extended Kalman Filter/data/*
 
+Particle Filter/data/*
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
