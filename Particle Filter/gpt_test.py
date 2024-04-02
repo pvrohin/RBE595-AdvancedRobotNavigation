@@ -1,10 +1,9 @@
 import numpy as np
 from scipy.stats import multivariate_normal
-from scipy.linalg import block_diag
 from extract_pose_final import estimate_pose, world_corners
-import sympy as sp
 import argparse
 import scipy.io
+import sympy as sp
 
 # Function to load data from .mat file
 def load_data(filename):
@@ -24,23 +23,6 @@ class ParticleFilter:
             noise = np.random.multivariate_normal(mean=np.zeros_like(control_input), cov=self.process_noise_covariance)
             # Apply process model
             self.particles[i] = process_model(self.particles[i], delta_t, control_input + noise)
-
-    # def update(self, observation):
-    #     # Update step using the new observation model
-    #     weights = np.zeros(self.num_particles)
-    #     tag_coordinates = world_corners()
-    #     for i in range(self.num_particles):
-    #         # Use estimate_pose function to calculate observation based on particle state
-    #         estimated_position, estimated_orientation = estimate_pose(observation, tag_coordinates)
-    #         estimated_pose = np.concatenate((estimated_position, estimated_orientation))
-    #         # Calculate likelihood of observation given particle state
-    #         likelihood = multivariate_normal.pdf(observation, mean=estimated_pose, cov=self.observation_noise_covariance)
-    #         weights[i] = likelihood
-    #     # Normalize weights
-    #     weights /= np.sum(weights)
-    #     # Resample particles based on weights
-    #     indices = np.random.choice(range(self.num_particles), size=self.num_particles, replace=True, p=weights)
-    #     self.particles = self.particles[indices]
 
     def update(self, particles, z, data, tag_coordinates):
         # Update step
@@ -68,12 +50,9 @@ class ParticleFilter:
     def estimate_state(self):
         # Estimate state by taking the mean of particles
         return np.mean(self.particles, axis=0)
-    
+
 def observation_model(particle, z, estimated_pose):
     # Observation model
-    # Compute the residual between the observation and the estimated pose
-    print(z.shape)
-    print(estimated_pose.shape)
     residual = z - estimated_pose
     # Compute the likelihood of the observation given the particle state
     likelihood = multivariate_normal.pdf(residual, mean=np.zeros_like(residual), cov=observation_noise_covariance)
@@ -152,6 +131,8 @@ def process_model(x, delta_t, u):
     # Return the process model
     return F_np
 
+
+# Function to load data from .mat file
 # Create the parser
 parser = argparse.ArgumentParser(description="Process the dataset number. The dataset number should be between 0 and 7.")
 parser.add_argument('dataset_number', type=int, help='The dataset number to process (0-7)')
@@ -194,8 +175,6 @@ tag_coordinates = world_corners()
 # Initialize particle filter
 initial_state = np.zeros(15)  # Initial state vector
 initial_covariance = np.eye(15) * 0.01  # Initial covariance matrix
-#process_noise_covariance = np.eye(15) * 1e-6  # Process noise covariance matrix (adjust as needed)
-#observation_noise_covariance = R  # Observation noise covariance matrix
 num_particles = 1000  # Number of particles
 
 particle_filter = ParticleFilter(initial_state, initial_covariance, process_noise_covariance, observation_noise_covariance, num_particles)
@@ -218,13 +197,7 @@ for i in range(len(data['data'])-1):
          # Update step
         observation = data['data'][i]
         # Obtain predicted state
-        predicted_state = particle_filter.estimate_state()
-        print(predicted_state)
-        #Take only the first 6 elements of the predicted state
-        predicted_state = predicted_state[:6]
-        # # Compute observation using the predicted state
-        # position, orientation = estimate_pose(observation, tag_coordinates)
-        # z = np.concatenate((position, orientation))
+        predicted_state = particle_filter.estimate_state()[:6]  # Take only the first 6 elements of the predicted state
         # Perform update step using the predicted state and computed observation
         particle_filter.update(particle_filter.particles, predicted_state, observation, tag_coordinates)
 
@@ -234,3 +207,4 @@ for i in range(len(data['data'])-1):
 
 # Convert lists to arrays for plotting
 estimated_positions = np.array(estimated_positions)
+
