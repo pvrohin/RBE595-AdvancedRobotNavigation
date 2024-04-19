@@ -10,7 +10,6 @@ def load_data(filename):
     return scipy.io.loadmat(filename, simplify_cells=True)
 
 def estimate_pose(data, tag_coordinates):
-    
     # Extract 3D coordinates of AprilTag corners from the map layout
     map_corners_3d = []
     for data_id in data['id']:
@@ -82,7 +81,8 @@ def estimate_pose(data, tag_coordinates):
     success, rvec, tvec = cv2.solvePnP(map_corners_3d, image_corners_2d, camera_matrix, dist_coeffs)
 
     if not success:
-        raise RuntimeError("PnP solver failed to converge")
+        #raise RuntimeError("PnP solver failed to converge")
+        return None, None
     
     # Convert rotation vector to rotation matrix
     rot_matrix, _ = cv2.Rodrigues(rvec)
