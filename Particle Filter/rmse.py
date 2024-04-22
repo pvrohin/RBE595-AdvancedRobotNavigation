@@ -1,7 +1,7 @@
 from particle_filter import ParticleFilter, run
 import numpy as np
 import matplotlib.pyplot as plt
-from ekf import ExtendedKalmanFilter
+from ekf import ExtendedKalmanFilter, run
 import scipy.io
 import argparse
 

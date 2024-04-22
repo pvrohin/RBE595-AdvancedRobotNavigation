@@ -137,6 +137,7 @@ class EKF:
         return H
     
 def run():
+
     # Call the function with the filename of the .mat file containing the data
     # Load data
     # Create the parser
@@ -283,5 +284,5 @@ def run():
 
     return estimated_positions
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     estimated_positions = run()
