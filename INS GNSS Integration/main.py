@@ -28,9 +28,53 @@ class INS_GNSS:
         self.dt = 1
         self.n = 15
 
-        self.P = np.eye(15) * 0.1
+        #self.P = np.eye(15) * 0.1
+        self.P = np.eye(15) * 0.00001
         self.Q = np.eye(15) * 0.01
         self.R = np.eye(6) * 0.00001
+
+    def unscented_transform(self, X1, wm, wc, noise_cov):
+        x = np.sum(wm * X1, axis=1).reshape(-1,1)
+        P = wc[0] * (X1[:,0] - x) @ (X1[:,0] - x).T + noise_cov
+        for i in range(1, 2*self.n+1):
+            P += wc[i] * (X1[:,i] - x) @ (X1[:,i] - x).T
+        return x, P
+    
+    def fix_covariance(self, covariance, jitter: float = 1e-3):
+        """
+        Fix the covariance matrix to be positive definite with the
+        jitter method on its eigen values. Will continually add more
+        jitter until the matrix is symmetric positive definite.
+        """
+        # Check for invalid values
+        if np.isnan(covariance).any() or np.isinf(covariance).any():
+            raise ValueError("Covariance matrix contains NaN or infinite values")
+
+        # Is it symmetric?
+        symmetric = np.allclose(covariance, covariance.T)
+        # Is it positive definite?
+        try:
+            np.linalg.cholesky(covariance)
+            positive_definite = True
+        except np.linalg.LinAlgError:
+            positive_definite = False
+
+        # If the result is symmetric and positive definite, return it
+        if symmetric and positive_definite:
+            return covariance
+
+        # Make covariance matrix symmetric
+        covariance = (covariance + covariance.T) / 2
+
+        # Set the eigen values to zero
+        eig_values, eig_vectors = np.linalg.eig(covariance)
+        eig_values[eig_values < 0] = 0
+        eig_values += jitter
+
+        # Reconstruct the matrix
+        covariance = eig_vectors.dot(np.diag(eig_values)).dot(eig_vectors.T)
+
+        return self.fix_covariance(covariance, jitter=10 * jitter)
 
     def run(self):
 
@@ -44,86 +88,104 @@ class INS_GNSS:
         x_prior[12:15] = np.zeros([3,1])
 
         # Define the bias values x_prior[9:12] and x_prior[12:15] as white gaussian noise
-        x_prior[9:12] = np.random.normal(0, 0.1, [3,1])
-        x_prior[12:15] = np.random.normal(0, 0.1, [3,1])
+        # x_prior[9:12] = np.random.normal(0, 0.1, [3,1])
+        # x_prior[12:15] = np.random.normal(0, 0.1, [3,1])
 
         P = self.P
         
         for i in range(self.len):
+            print('Iteration: ', i)
+            print(self.len)
             # Get the gyro, acc and measurement data
-            gyro = self.gyro_x_y_z[i,:].reshape(-1,1)
-            acc = self.accel_x_y_z[i,:].reshape(-1,1)
-            z = np.vstack([self.z_lat_lon_alt[i,:].reshape(-1,1), self.z_VN_VE_VD[i,:].reshape(-1,1)])
+            gyro = self.gyro_x_y_z[i, :].reshape(-1, 1)
+            acc = self.accel_x_y_z[i, :].reshape(-1, 1)
+            z = np.vstack([self.z_lat_lon_alt[i, :].reshape(-1, 1), self.z_VN_VE_VD[i, :].reshape(-1, 1)])
 
-            #x_updated = feedback_propagation_model(x_prior, gyro, acc, self.dt)
+            # Print shape of P
+            print('Shape of P: ', np.shape(P))
 
-            # Get sigma points X0 with wights wm, wc
+            # Get sigma points X0 with weights wm, wc
             X0, wm, wc = getSigmaPoints(x_prior, P, self.n)
+
+            # Print shape of X0
+            print('Shape of X0: ', np.shape(X0))
             
-            # Propogate sigma points through state transition
-            X1 = np.zeros(np.shape(X0))
+            # Propagate sigma points through state transition
+            X1 = np.zeros([self.n, 2*self.n+1])
             for j in range(2*self.n+1):
-                thisX = X0[:,j]
-                X1[:,j] = np.squeeze(feedback_propagation_model(x_prior, gyro, acc, self.dt))
-            
-            # Recover mean
-            x = np.sum(X1 * wm, axis=1)
-            # Recover variance
-            diff = X1-np.vstack(x)
-            P = np.zeros((self.n, self.n))
-            diff2 = X1-np.vstack(X1[:,0])
+                X1[:, j] = feedback_propagation_model(X0[:, j].reshape(-1, 1), gyro, acc, self.dt).squeeze()
+
+            # Compute the predicted state and covariance
+            x_prior, P = self.unscented_transform(X1, wm, wc, self.Q)
+
+            # Print shape of P
+            print('Shape of P: ', np.shape(P))
+
+            if np.all(np.linalg.eigvals(P) > 0):
+                print('P is positive definite')
+            else:
+                P = self.fix_covariance(P)
+
+            # Get sigma points X0 with weights wm, wc
+            X0, wm, wc = getSigmaPoints(x_prior, P, self.n)
+
+            # Propagate sigma points through measurement model
+            Z1 = np.zeros([6, 2*self.n+1])
             for j in range(2*self.n+1):
-                d = diff2[:, j].reshape(-1,1)
-                P += wc[j] * d @ d.T
-            P += self.Q
+                Z1[:, j] = measurement_model(X0[:, j].reshape(-1, 1)).squeeze()
 
-            # Get new sigma points
-            X2, wm, wc = getSigmaPoints(x, self.P, self.n)
+            # Print the shape of Z1 before computing z_prior
+            print('Shape of Z1 before computing z_prior: ', np.shape(Z1))
 
-            # Put sigma points through measurement model
-            Z = np.zeros([6,2*self.n+1])
+            # Compute the predicted measurement and covariance
+            z_prior, Pz = self.unscented_transform(Z1, wm, wc, self.R)
+
+            # Print the shape of z_prior after computing it within the unscented_transform function
+            print('Shape of z_prior after computing within unscented_transform: ', np.shape(z_prior))
+
+            # Compute the cross covariance
+            Pxz = np.zeros([self.n, 6])
             for j in range(2*self.n+1):
-                thisX = X2[:,j]
-                Z[:,j] = measurement_model(thisX)
+                Pxz += wc[j] * (X1[:, j].reshape(-1, 1) - x_prior).dot((Z1[:, j].reshape(-1, 1) - z_prior).T)
 
-            # Recover mean
-            z = np.sum(Z * wm, axis=1)
+            # Print the shape of (Z1.flatten() - z_prior)
+            print('Shape of (z.flatten() - z_prior): ', np.shape(z.flatten() - z_prior))
 
-            # Recover variance
-            S = np.zeros((6,6))
+            # Reshape z.flatten() to match the shape of z_prior
+            z_flattened = z.flatten().reshape(-1, 1)        
 
-            diff2 = Z-np.vstack(Z[:,0])
-            for j in range(2 * self.n + 1):
-                d = diff2[:, j].reshape(-1,1)
-                S += wc[j] * d @ d.T
-            S += self.R
+            # Compute the Kalman gain
+            K = Pxz.dot(np.linalg.inv(Pz))
 
-            diff = Z-np.vstack(z)
-            # Compute cross covariance
-            cxz = np.zeros([self.n,6])
-            for j in range(2 * self.n + 1):
-                cxz += wc[j] * np.outer(X2[:,j] - x, diff[:, j])
+            # Update the state and covariance
+            #x_prior = x_prior + K.dot(z.flatten() - z_prior)
+            # Update the state and covariance
+            x_prior = x_prior + K.dot(z_flattened - z_prior)
+            #x_prior = x_prior + K.dot((z.flatten() - z_prior.reshape(-1, 1)))
+            P = P - K.dot(Pz).dot(K.T)
 
-            # Compute Kalman Gain
-            K = cxz @ np.linalg.inv(S)
+            # Print shape of P
+            print('Shape of P: ', np.shape(P))
 
-            z_meas = z
+            # Check if P is positive definite
+            if np.all(np.linalg.eigvals(P) > 0):
+                print('P is positive definite')
+            else:
+                P = self.fix_covariance(P)
 
-            # Update estimate
-            x = x.reshape(-1,1) + K @ (z_meas - np.vstack(z))
-            print(z_meas - np.vstack(z))
-            # Update variance
-            P = P - K @ S @ np.transpose(K)
+            # Print shape of P
+            print('Shape of P: ', np.shape(P))
 
-            x_updated = x
+            if np.all(np.linalg.eigvals(P) > 0):
+                print('P is positive definite')
+            else:
+                print('P is not positive definite')
 
-            x_prior = x_updated
-            print(f"i: {i}")
+            # Print shape of x_prior
+            print('x_prior: ', x_prior)
 
-            # Append the updated state to the feedback_states
-            self.feedback_states[i,:] = x_updated[:,0]
+            self.feedback_states[i, :] = x_prior[:, 0].squeeze()
 
-        return self.feedback_states
     
     def plot(self, feedback_states):
         # Plot the lalitude
@@ -153,8 +215,8 @@ def run():
 
     # Initialize the INS_GNSS class
     ins_gnss = INS_GNSS(data)
-    feedback_states = ins_gnss.run()
-    ins_gnss.plot(feedback_states)
+    ins_gnss.run()
+    #ins_gnss.plot(feedback_states)
 
 if __name__ == '__main__':
     run()
