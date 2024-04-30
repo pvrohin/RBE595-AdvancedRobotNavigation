@@ -3,7 +3,7 @@ import numpy as np
 from scipy.linalg import sqrtm
 from scipy.spatial.transform import Rotation
 import matplotlib.pyplot as plt
-from process_model_fb import *
+from process_model_ff import *
 from haversine import haversine, Unit
 
 def load_data(path):
@@ -28,7 +28,7 @@ class UKF:
 
         self.dt = 1
 
-        self.n = 15
+        self.n = 12
 
         # The number of sigma points we do are typically 2*n + 1,
         # so therefore...
@@ -69,12 +69,12 @@ class UKF:
 
     def measurement_function(self, state, gnss) -> np.ndarray:
         noise_adjustment = np.zeros((self.n, 1))
-        noise_scale = 2e-3
+        noise_scale = 1e-9
         noise = np.random.normal(scale=noise_scale, size=(self.n, self.n))
 
         c = np.zeros((self.n, self.n))
         c[0:6, 0:6] = np.eye(6)
-        c[6:9, 6:9] = np.eye(3)
+        #c[6:9, 6:9] = np.eye(3)
 
         R = np.diag(noise).reshape(self.n, 1)
         noise_adjustment[0 : self.n] = np.dot(c, state) + R
@@ -173,7 +173,7 @@ class UKF:
         # For each sigma point, run them through our state transition function
         transitioned_points = np.zeros_like(sigma_points)
         for i in range(sigma_points.shape[0]):
-            transitioned_points[i, :] = feedback_propagation_model(sigma_points[i], wb, fb, self.dt)
+            transitioned_points[i, :] = feedforward_propagation_model(sigma_points[i], wb, fb, self.dt)
 
         # Calculate the mean of the transitioned points by their respective weights
         mu = np.zeros((self.n, 1))
@@ -181,7 +181,7 @@ class UKF:
             mu += self.weights_mean[i] * transitioned_points[i]
 
         # Calculate the covariance of the transitioned points by their respective weights. 
-        noise_scale = 5e-5
+        noise_scale = 0.18
         Q = np.random.normal(scale=noise_scale, size=(self.n, self.n))
         differences = transitioned_points - mu
         sigma = np.zeros((self.n, self.n))
@@ -194,12 +194,12 @@ class UKF:
     def run(self):
         # First we need to initialize our initial position to the 0th estimated
         # position. We will use the true value for the init on the 0th only
-        state = np.zeros([15,1])
+        state = np.zeros([12,1])
         state[0:3] = self.gt_lat_lon_alt[0,:].reshape(-1,1)
         state[3:6] = self.gt_roll_pitch_yaw[0,:].reshape(-1,1)
         state[6:9] = self.z_VN_VE_VD[0,:].reshape(-1,1)
         state[9:12] = np.zeros([3,1])
-        state[12:15] = np.zeros([3,1])
+        #state[12:15] = np.zeros([3,1])
         # print shape of state
         print(state.shape)
         print(state)
@@ -217,7 +217,7 @@ class UKF:
             gyro = self.gyro_x_y_z[i, :].reshape(-1, 1)
             acc = self.accel_x_y_z[i, :].reshape(-1, 1)
             # make z with 0,1,2 as lat, lon, alt and 6,7,8 as VN, VE, VD, set the rest to 0
-            z = np.zeros([15,1])
+            z = np.zeros([12,1])
             z[0:3] = self.z_lat_lon_alt[i,:].reshape(-1,1)
             z[6:9] = self.z_VN_VE_VD[i,:].reshape(-1,1)
 
@@ -227,6 +227,8 @@ class UKF:
             # Run the prediction step based off of our state transition
             mubar, sigmabar, transitioned_points = self.predict(sigma_points, acc, gyro, self.dt)
 
+            mubar
+
             # Run the update step to filter our estimated position and resulting
             # sigma (mu and sigma)
             mu, sigma = self.update(z, mubar, sigmabar, transitioned_points)
@@ -235,6 +237,8 @@ class UKF:
             # matrix is sigma
             process_covariance_matrix = sigma
             state = mu
+
+            mubar[9:12] = mubar[0:3] - z[0:3]
 
             print(state.shape)
 
@@ -283,7 +287,7 @@ class UKF:
         plt.ylabel('Latitude')
         plt.legend()
         plt.title('Latitude')
-        plt.savefig('fb_results/latitude.png')
+        plt.savefig('ff_results/latitude.png')
 
         plt.figure()
         plt.plot(gt_lon, label='Ground Truth')
@@ -292,7 +296,7 @@ class UKF:
         plt.ylabel('Longitude')
         plt.legend()
         plt.title('Longitude')
-        plt.savefig('fb_results/longitude.png')
+        plt.savefig('ff_results/longitude.png')
 
         plt.figure()
         plt.plot(gt_alt, label='Ground Truth')
@@ -301,7 +305,7 @@ class UKF:
         plt.ylabel('Altitude')
         plt.legend()
         plt.title('Altitude')
-        plt.savefig('fb_results/altitude.png')
+        plt.savefig('ff_results/altitude.png')
 
         plt.figure()
         plt.plot(gt_roll, label='Ground Truth')
@@ -310,7 +314,7 @@ class UKF:
         plt.ylabel('Roll')
         plt.legend()
         plt.title('Roll')
-        plt.savefig('fb_results/roll.png')
+        plt.savefig('ff_results/roll.png')
 
         plt.figure()
         plt.plot(gt_pitch, label='Ground Truth')
@@ -319,7 +323,7 @@ class UKF:
         plt.ylabel('Pitch')
         plt.legend()
         plt.title('Pitch')
-        plt.savefig('fb_results/pitch.png')
+        plt.savefig('ff_results/pitch.png')
 
         plt.figure()
         plt.plot(gt_yaw, label='Ground Truth')
@@ -328,7 +332,7 @@ class UKF:
         plt.ylabel('Yaw')
         plt.legend()
         plt.title('Yaw')
-        plt.savefig('fb_results/yaw.png')
+        plt.savefig('ff_results/yaw.png')
 
         plt.figure()
         plt.plot(gt_vn, label='Ground Truth')
@@ -337,7 +341,7 @@ class UKF:
         plt.ylabel('VN')
         plt.legend()
         plt.title('VN')
-        plt.savefig('fb_results/vn.png')
+        plt.savefig('ff_results/vn.png')
 
         plt.figure()
         plt.plot(gt_ve, label='Ground Truth')
@@ -346,7 +350,7 @@ class UKF:
         plt.ylabel('VE')
         plt.legend()
         plt.title('VE')
-        plt.savefig('fb_results/ve.png')
+        plt.savefig('ff_results/ve.png')
         
         plt.figure()
         plt.plot(gt_vd, label='Ground Truth')
@@ -355,7 +359,7 @@ class UKF:
         plt.ylabel('VD')
         plt.legend()
         plt.title('VD')
-        plt.savefig('fb_results/vd.png')
+        plt.savefig('ff_results/vd.png')
 
         #Plot the haversine distance 
         plt.figure()
@@ -363,14 +367,15 @@ class UKF:
         plt.xlabel('Time')
         plt.ylabel('Haversine Distance')
         plt.title('Haversine Distance')
-        plt.savefig('fb_results/haversine_distance.png')
+        plt.savefig('ff_results/haversine_distance.png')
 
         plt.show()
-
+    
 def main():
     data = load_data('trajectory_data.csv')
     ukf = UKF(data)
     filtered_positions, haversine_distances = ukf.run()
+
     ukf.plot(filtered_positions, haversine_distances)
 
 if __name__ == "__main__":
